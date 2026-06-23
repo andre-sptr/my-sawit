@@ -51,6 +51,6 @@ export async function sendDocument(
   form.append('chat_id', cfg.chatId)
   form.append('caption', caption)
   form.append('parse_mode', 'HTML')
-  form.append('document', new Blob([bytes], { type: 'application/pdf' }), filename)
+  form.append('document', new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' }), filename)
   await post(cfg.token, 'sendDocument', form)
 }
