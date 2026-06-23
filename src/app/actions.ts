@@ -5,6 +5,17 @@ import { prisma } from '@/lib/prisma'
 import { saveOptionalPhoto } from '@/lib/uploads'
 import type { ActionResult } from '@/lib/types'
 import { ExpenseCategory, MaintenanceType } from '@prisma/client'
+import {
+  notifyExpenseCreated,
+  notifyExpenseDeleted,
+  notifyExpenseUpdated,
+  notifyMaintenanceCreated,
+  notifyMaintenanceDeleted,
+  notifyMaintenanceUpdated,
+  notifySaleCreated,
+  notifySaleDeleted,
+  notifySaleUpdated,
+} from '@/lib/notify'
 
 function text(formData: FormData, key: string) {
   const value = formData.get(key)
@@ -208,7 +219,7 @@ export async function createMaintenance(
   try {
     const photoPath = await saveOptionalPhoto(formData)
     const kaplingId = requiredText(formData, 'kaplingId', 'Kapling')
-    await prisma.maintenance.create({
+    const maintenance = await prisma.maintenance.create({
       data: {
         kaplingId,
         activityDate: requiredDate(formData, 'activityDate', 'Tanggal perawatan'),
@@ -217,6 +228,13 @@ export async function createMaintenance(
         photoPath,
         note: text(formData, 'note') || null,
       },
+      include: { kapling: { select: { name: true } } },
+    })
+    await notifyMaintenanceCreated({
+      kaplingName: maintenance.kapling.name,
+      activityDate: maintenance.activityDate,
+      type: maintenance.type,
+      cost: maintenance.cost,
     })
     revalidateKaplingPages(kaplingId)
     return { ok: true, message: 'Perawatan berhasil disimpan.' }
@@ -231,7 +249,7 @@ export async function updateMaintenance(
 ): Promise<ActionResult> {
   try {
     const photoPath = await saveOptionalPhoto(formData)
-    await prisma.maintenance.update({
+    const maintenance = await prisma.maintenance.update({
       where: { id: requiredText(formData, 'id', 'Perawatan') },
       data: {
         activityDate: requiredDate(formData, 'activityDate', 'Tanggal perawatan'),
@@ -240,6 +258,13 @@ export async function updateMaintenance(
         ...(photoPath ? { photoPath } : {}),
         note: text(formData, 'note') || null,
       },
+      include: { kapling: { select: { name: true } } },
+    })
+    await notifyMaintenanceUpdated({
+      kaplingName: maintenance.kapling.name,
+      activityDate: maintenance.activityDate,
+      type: maintenance.type,
+      cost: maintenance.cost,
     })
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Perawatan berhasil diubah.' }
@@ -253,7 +278,20 @@ export async function deleteMaintenance(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    await prisma.maintenance.delete({ where: { id: requiredText(formData, 'id', 'Perawatan') } })
+    const id = requiredText(formData, 'id', 'Perawatan')
+    const existing = await prisma.maintenance.findUnique({
+      where: { id },
+      include: { kapling: { select: { name: true } } },
+    })
+    await prisma.maintenance.delete({ where: { id } })
+    if (existing) {
+      await notifyMaintenanceDeleted({
+        kaplingName: existing.kapling.name,
+        activityDate: existing.activityDate,
+        type: existing.type,
+        cost: existing.cost,
+      })
+    }
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Perawatan berhasil dihapus.' }
   } catch (error) {
@@ -268,7 +306,7 @@ export async function createExpense(
   try {
     const photoPath = await saveOptionalPhoto(formData)
     const kaplingId = requiredText(formData, 'kaplingId', 'Kapling')
-    await prisma.expense.create({
+    const expense = await prisma.expense.create({
       data: {
         kaplingId,
         expenseDate: requiredDate(formData, 'expenseDate', 'Tanggal pengeluaran'),
@@ -277,6 +315,13 @@ export async function createExpense(
         photoPath,
         note: text(formData, 'note') || null,
       },
+      include: { kapling: { select: { name: true } } },
+    })
+    await notifyExpenseCreated({
+      kaplingName: expense.kapling.name,
+      expenseDate: expense.expenseDate,
+      category: expense.category,
+      amount: expense.amount,
     })
     revalidateKaplingPages(kaplingId)
     return { ok: true, message: 'Pengeluaran berhasil disimpan.' }
@@ -291,7 +336,7 @@ export async function updateExpense(
 ): Promise<ActionResult> {
   try {
     const photoPath = await saveOptionalPhoto(formData)
-    await prisma.expense.update({
+    const expense = await prisma.expense.update({
       where: { id: requiredText(formData, 'id', 'Pengeluaran') },
       data: {
         expenseDate: requiredDate(formData, 'expenseDate', 'Tanggal pengeluaran'),
@@ -300,6 +345,13 @@ export async function updateExpense(
         ...(photoPath ? { photoPath } : {}),
         note: text(formData, 'note') || null,
       },
+      include: { kapling: { select: { name: true } } },
+    })
+    await notifyExpenseUpdated({
+      kaplingName: expense.kapling.name,
+      expenseDate: expense.expenseDate,
+      category: expense.category,
+      amount: expense.amount,
     })
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Pengeluaran berhasil diubah.' }
@@ -313,7 +365,20 @@ export async function deleteExpense(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    await prisma.expense.delete({ where: { id: requiredText(formData, 'id', 'Pengeluaran') } })
+    const id = requiredText(formData, 'id', 'Pengeluaran')
+    const existing = await prisma.expense.findUnique({
+      where: { id },
+      include: { kapling: { select: { name: true } } },
+    })
+    await prisma.expense.delete({ where: { id } })
+    if (existing) {
+      await notifyExpenseDeleted({
+        kaplingName: existing.kapling.name,
+        expenseDate: existing.expenseDate,
+        category: existing.category,
+        amount: existing.amount,
+      })
+    }
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Pengeluaran berhasil dihapus.' }
   } catch (error) {
@@ -328,7 +393,7 @@ export async function createSale(
   try {
     const photoPath = await saveOptionalPhoto(formData)
     const kaplingId = requiredText(formData, 'kaplingId', 'Kapling')
-    await prisma.sale.create({
+    const sale = await prisma.sale.create({
       data: {
         kaplingId,
         saleDate: requiredDate(formData, 'saleDate', 'Tanggal penjualan'),
@@ -337,6 +402,15 @@ export async function createSale(
         photoPath,
         note: text(formData, 'note') || null,
       },
+      include: { kapling: { select: { name: true } } },
+    })
+    await notifySaleCreated({
+      id: sale.id,
+      kaplingName: sale.kapling.name,
+      saleDate: sale.saleDate,
+      weightKg: sale.weightKg,
+      pricePerKg: sale.pricePerKg,
+      note: sale.note,
     })
     revalidateKaplingPages(kaplingId)
     return { ok: true, message: 'Hasil panen berhasil disimpan.' }
@@ -351,7 +425,7 @@ export async function updateSale(
 ): Promise<ActionResult> {
   try {
     const photoPath = await saveOptionalPhoto(formData)
-    await prisma.sale.update({
+    const sale = await prisma.sale.update({
       where: { id: requiredText(formData, 'id', 'Hasil panen') },
       data: {
         saleDate: requiredDate(formData, 'saleDate', 'Tanggal penjualan'),
@@ -360,6 +434,15 @@ export async function updateSale(
         ...(photoPath ? { photoPath } : {}),
         note: text(formData, 'note') || null,
       },
+      include: { kapling: { select: { name: true } } },
+    })
+    await notifySaleUpdated({
+      id: sale.id,
+      kaplingName: sale.kapling.name,
+      saleDate: sale.saleDate,
+      weightKg: sale.weightKg,
+      pricePerKg: sale.pricePerKg,
+      note: sale.note,
     })
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Hasil panen berhasil diubah.' }
@@ -373,7 +456,22 @@ export async function deleteSale(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    await prisma.sale.delete({ where: { id: requiredText(formData, 'id', 'Hasil panen') } })
+    const id = requiredText(formData, 'id', 'Hasil panen')
+    const existing = await prisma.sale.findUnique({
+      where: { id },
+      include: { kapling: { select: { name: true } } },
+    })
+    await prisma.sale.delete({ where: { id } })
+    if (existing) {
+      await notifySaleDeleted({
+        id: existing.id,
+        kaplingName: existing.kapling.name,
+        saleDate: existing.saleDate,
+        weightKg: existing.weightKg,
+        pricePerKg: existing.pricePerKg,
+        note: existing.note,
+      })
+    }
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Hasil panen berhasil dihapus.' }
   } catch (error) {
