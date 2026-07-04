@@ -9,6 +9,9 @@ import {
   notifyExpenseCreated,
   notifyExpenseDeleted,
   notifyExpenseUpdated,
+  notifyHarvestCreated,
+  notifyHarvestDeleted,
+  notifyHarvestUpdated,
   notifyMaintenanceCreated,
   notifyMaintenanceDeleted,
   notifyMaintenanceUpdated,
@@ -161,7 +164,7 @@ export async function createHarvest(
   try {
     const photoPath = await saveOptionalPhoto(formData)
     const kaplingId = requiredText(formData, 'kaplingId', 'Kapling')
-    await prisma.harvest.create({
+    const harvest = await prisma.harvest.create({
       data: {
         kaplingId,
         harvestDate: requiredDate(formData, 'harvestDate', 'Tanggal panen'),
@@ -169,6 +172,14 @@ export async function createHarvest(
         photoPath,
         note: text(formData, 'note') || null,
       },
+      include: { kapling: { select: { name: true } } },
+    })
+    await notifyHarvestCreated({
+      kaplingName: harvest.kapling.name,
+      harvestDate: harvest.harvestDate,
+      weightKg: harvest.weightKg,
+      note: harvest.note,
+      photoPath: harvest.photoPath,
     })
     revalidateKaplingPages(kaplingId)
     return { ok: true, message: 'Panenan berhasil disimpan.' }
@@ -183,7 +194,7 @@ export async function updateHarvest(
 ): Promise<ActionResult> {
   try {
     const photoPath = await saveOptionalPhoto(formData)
-    await prisma.harvest.update({
+    const harvest = await prisma.harvest.update({
       where: { id: requiredText(formData, 'id', 'Panenan') },
       data: {
         harvestDate: requiredDate(formData, 'harvestDate', 'Tanggal panen'),
@@ -191,6 +202,14 @@ export async function updateHarvest(
         ...(photoPath ? { photoPath } : {}),
         note: text(formData, 'note') || null,
       },
+      include: { kapling: { select: { name: true } } },
+    })
+    await notifyHarvestUpdated({
+      kaplingName: harvest.kapling.name,
+      harvestDate: harvest.harvestDate,
+      weightKg: harvest.weightKg,
+      note: harvest.note,
+      photoPath: harvest.photoPath,
     })
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Panenan berhasil diubah.' }
@@ -204,7 +223,21 @@ export async function deleteHarvest(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    await prisma.harvest.delete({ where: { id: requiredText(formData, 'id', 'Panenan') } })
+    const id = requiredText(formData, 'id', 'Panenan')
+    // Read before delete so notify can include record details in the deletion message.
+    const existing = await prisma.harvest.findUnique({
+      where: { id },
+      include: { kapling: { select: { name: true } } },
+    })
+    await prisma.harvest.delete({ where: { id } })
+    if (existing) {
+      await notifyHarvestDeleted({
+        kaplingName: existing.kapling.name,
+        harvestDate: existing.harvestDate,
+        weightKg: existing.weightKg,
+        note: existing.note,
+      })
+    }
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Panenan berhasil dihapus.' }
   } catch (error) {
@@ -235,6 +268,7 @@ export async function createMaintenance(
       activityDate: maintenance.activityDate,
       type: maintenance.type,
       cost: maintenance.cost,
+      photoPath: maintenance.photoPath,
     })
     revalidateKaplingPages(kaplingId)
     return { ok: true, message: 'Perawatan berhasil disimpan.' }
@@ -265,6 +299,7 @@ export async function updateMaintenance(
       activityDate: maintenance.activityDate,
       type: maintenance.type,
       cost: maintenance.cost,
+      photoPath: maintenance.photoPath,
     })
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Perawatan berhasil diubah.' }
@@ -323,6 +358,7 @@ export async function createExpense(
       expenseDate: expense.expenseDate,
       category: expense.category,
       amount: expense.amount,
+      photoPath: expense.photoPath,
     })
     revalidateKaplingPages(kaplingId)
     return { ok: true, message: 'Pengeluaran berhasil disimpan.' }
@@ -353,6 +389,7 @@ export async function updateExpense(
       expenseDate: expense.expenseDate,
       category: expense.category,
       amount: expense.amount,
+      photoPath: expense.photoPath,
     })
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Pengeluaran berhasil diubah.' }

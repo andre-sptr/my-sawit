@@ -1,4 +1,6 @@
-import { sendDocument, sendMessage } from '@/lib/telegram'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { sendDocument, sendMessage, sendPhoto } from '@/lib/telegram'
 import { buildSaleInvoicePdf } from '@/lib/invoice-pdf'
 import { formatCurrency, formatDate, formatKg, toDateInputValue } from '@/lib/date'
 import { expenseCategories, maintenanceTypes } from '@/lib/types'
@@ -20,6 +22,7 @@ export type SaleInput = {
   weightKg: number
   pricePerKg: number
   note?: string | null
+  photoPath?: string | null
 }
 
 export type ExpenseInput = {
@@ -27,6 +30,7 @@ export type ExpenseInput = {
   expenseDate: Date
   category: string
   amount: number
+  photoPath?: string | null
 }
 
 export type MaintenanceInput = {
@@ -34,6 +38,15 @@ export type MaintenanceInput = {
   activityDate: Date
   type: string
   cost?: number | null
+  photoPath?: string | null
+}
+
+export type HarvestInput = {
+  kaplingName: string
+  harvestDate: Date
+  weightKg: number
+  note?: string | null
+  photoPath?: string | null
 }
 
 function escapeHtml(s: string) {
@@ -92,12 +105,40 @@ export function maintenanceTextMessage(m: MaintenanceInput, action: 'baru' | 'di
   return `${icon} <b>Perawatan ${action}</b> (${typeLabel(m.type)}) — ${escapeHtml(m.kaplingName)}: ${cost} · ${formatDate(m.activityDate)}`
 }
 
+export function harvestTextMessage(h: HarvestInput, action: 'baru' | 'diperbarui' | 'dihapus') {
+  const icon = action === 'dihapus' ? '\u{1F5D1}️' : action === 'diperbarui' ? '✏️' : '\u{1F33F}'
+  const weight = action === 'dihapus' ? formatKg(h.weightKg) : `<b>${formatKg(h.weightKg)}</b>`
+  return `${icon} <b>Panen ${action}</b> — ${escapeHtml(h.kaplingName)}: ${weight} · ${formatDate(h.harvestDate)}`
+}
+
 // ── safety wrapper: notify must never throw ──────────────────────────
 async function guard(label: string, fn: () => Promise<void>) {
   try {
     await fn()
   } catch (error) {
     console.warn(`[notify] ${label} gagal:`, error instanceof Error ? error.message : error)
+  }
+}
+
+// Foto disimpan di public/uploads/<filename>. Baca dari disk lalu kirim
+// sebagai attachment. Bila file hilang / path salah, fallback ke pesan teks.
+async function sendPhotoOrText(photoPath: string | null | undefined, caption: string) {
+  if (!photoPath) {
+    await sendMessage(caption)
+    return
+  }
+  try {
+    const safe = photoPath.replace(/^\/+/, '')
+    if (!safe.startsWith('uploads/')) throw new Error('unexpected photo path')
+    const abs = path.join(process.cwd(), 'public', safe)
+    const bytes = await readFile(abs)
+    const ext = path.extname(safe).toLowerCase()
+    const mime =
+      ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg'
+    await sendPhoto(bytes, path.basename(safe), caption, mime)
+  } catch (error) {
+    console.warn('[notify] photo fallback ke teks:', error instanceof Error ? error.message : error)
+    await sendMessage(caption)
   }
 }
 
@@ -129,20 +170,29 @@ export async function notifySaleDeleted(sale: SaleInput) {
   await guard('sale.deleted', () => sendMessage(saleDeletedText(sale)))
 }
 export async function notifyExpenseCreated(e: ExpenseInput) {
-  await guard('expense.created', () => sendMessage(expenseTextMessage(e, 'baru')))
+  await guard('expense.created', () => sendPhotoOrText(e.photoPath, expenseTextMessage(e, 'baru')))
 }
 export async function notifyExpenseUpdated(e: ExpenseInput) {
-  await guard('expense.updated', () => sendMessage(expenseTextMessage(e, 'diperbarui')))
+  await guard('expense.updated', () => sendPhotoOrText(e.photoPath, expenseTextMessage(e, 'diperbarui')))
 }
 export async function notifyExpenseDeleted(e: ExpenseInput) {
   await guard('expense.deleted', () => sendMessage(expenseTextMessage(e, 'dihapus')))
 }
 export async function notifyMaintenanceCreated(m: MaintenanceInput) {
-  await guard('maintenance.created', () => sendMessage(maintenanceTextMessage(m, 'baru')))
+  await guard('maintenance.created', () => sendPhotoOrText(m.photoPath, maintenanceTextMessage(m, 'baru')))
 }
 export async function notifyMaintenanceUpdated(m: MaintenanceInput) {
-  await guard('maintenance.updated', () => sendMessage(maintenanceTextMessage(m, 'diperbarui')))
+  await guard('maintenance.updated', () => sendPhotoOrText(m.photoPath, maintenanceTextMessage(m, 'diperbarui')))
 }
 export async function notifyMaintenanceDeleted(m: MaintenanceInput) {
   await guard('maintenance.deleted', () => sendMessage(maintenanceTextMessage(m, 'dihapus')))
+}
+export async function notifyHarvestCreated(h: HarvestInput) {
+  await guard('harvest.created', () => sendPhotoOrText(h.photoPath, harvestTextMessage(h, 'baru')))
+}
+export async function notifyHarvestUpdated(h: HarvestInput) {
+  await guard('harvest.updated', () => sendPhotoOrText(h.photoPath, harvestTextMessage(h, 'diperbarui')))
+}
+export async function notifyHarvestDeleted(h: HarvestInput) {
+  await guard('harvest.deleted', () => sendMessage(harvestTextMessage(h, 'dihapus')))
 }

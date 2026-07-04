@@ -1,3 +1,5 @@
+// This maintenance script is CommonJS because the package is not ESM.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const fs = require('fs');
 const file = 'src/app/globals.css';
 let content = fs.readFileSync(file, 'utf8');

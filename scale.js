@@ -1,3 +1,5 @@
+// This maintenance script is CommonJS because the package is not ESM.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const fs = require('fs');
 const files = [
   'src/app/page.tsx',

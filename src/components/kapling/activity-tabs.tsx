@@ -528,11 +528,6 @@ function LaporanTab({ harvests, maintenance, expenses, sales }: {
   const profitMargin     = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
   const isProfit         = netProfit >= 0
 
-  // Harga jual tertinggi & terendah
-  const prices           = sales.map(s => s.pricePerKg)
-  const maxPrice         = prices.length > 0 ? Math.max(...prices) : 0
-  const minPrice         = prices.length > 0 ? Math.min(...prices) : 0
-
   // Total gaji vs perawatan vs lain-lain
   const totalGaji        = expenses.filter(e => e.category === 'GAJI_KARYAWAN').reduce((s, e) => s + e.amount, 0)
   const totalLainlain    = expenses.filter(e => e.category === 'LAIN_LAIN').reduce((s, e) => s + e.amount, 0)

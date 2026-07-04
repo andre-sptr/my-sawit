@@ -247,9 +247,7 @@ function SidebarContent({ kaplings, onAddKapling }: SidebarProps) {
   )
 }
 
-interface SidebarShellProps extends SidebarProps {}
-
-export function Sidebar(props: SidebarShellProps) {
+export function Sidebar(props: SidebarProps) {
   const { isOpen, close } = useSidebar()
 
   return (

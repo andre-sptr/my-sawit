@@ -17,6 +17,22 @@ interface AddKaplingModalProps {
   onClose: () => void
 }
 
+function SubmitButton() {
+  const { pending } = useFormStatus()
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="btn-primary"
+      style={{ flex: 1, height: 42 }}
+    >
+      {pending ? (
+        <><span className="animate-spin" style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} /> Menyimpan...</>
+      ) : 'Tambah Kapling'}
+    </button>
+  )
+}
+
 export function AddKaplingModal({ isOpen, onClose }: AddKaplingModalProps) {
   const formRef = useRef<HTMLFormElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -34,31 +50,14 @@ export function AddKaplingModal({ isOpen, onClose }: AddKaplingModalProps) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  if (!isOpen) return null
-
-  // Close on success
   useEffect(() => {
-    if (state?.ok) {
+    if (isOpen && state?.ok) {
       formRef.current?.reset()
       onClose()
     }
-  }, [state, onClose])
+  }, [isOpen, state, onClose])
 
-  function SubmitButton() {
-    const { pending } = useFormStatus()
-    return (
-      <button
-        type="submit"
-        disabled={pending}
-        className="btn-primary"
-        style={{ flex: 1, height: 42 }}
-      >
-        {pending ? (
-          <><span className="animate-spin" style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} /> Menyimpan...</>
-        ) : 'Tambah Kapling'}
-      </button>
-    )
-  }
+  if (!isOpen) return null
 
   return (
     <div

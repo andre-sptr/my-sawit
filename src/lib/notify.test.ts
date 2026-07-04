@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/telegram', () => ({
   sendMessage: vi.fn(async () => {}),
   sendDocument: vi.fn(async () => {}),
+  sendPhoto: vi.fn(async () => {}),
 }))
 vi.mock('@/lib/invoice-pdf', () => ({
   buildSaleInvoicePdf: vi.fn(async () => new Uint8Array([0x25, 0x50, 0x44, 0x46])),
@@ -13,6 +14,8 @@ import { buildSaleInvoicePdf } from '@/lib/invoice-pdf'
 import {
   buildInvoiceNumber,
   notifyExpenseCreated,
+  notifyHarvestCreated,
+  notifyHarvestDeleted,
   notifyMaintenanceCreated,
   notifySaleCreated,
   notifySaleDeleted,
@@ -82,5 +85,53 @@ describe('notify orchestrators', () => {
   it('tidak pernah throw walau transport gagal', async () => {
     ;(telegram.sendMessage as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('boom'))
     await expect(notifySaleDeleted(sale)).resolves.toBeUndefined()
+  })
+
+  it('panen baru tanpa foto → kirim teks', async () => {
+    await notifyHarvestCreated({
+      kaplingName: 'Kapling 1',
+      harvestDate: new Date('2026-06-23T03:00:00Z'),
+      weightKg: 120,
+    })
+    expect(telegram.sendMessage).toHaveBeenCalledTimes(1)
+    expect(telegram.sendPhoto).not.toHaveBeenCalled()
+    const msg = (telegram.sendMessage as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(msg).toContain('Panen baru')
+    expect(msg).toContain('Kapling 1')
+    expect(msg).toContain('120 kg')
+  })
+
+  it('panen dihapus → kirim teks (tanpa mencoba baca foto)', async () => {
+    await notifyHarvestDeleted({
+      kaplingName: 'Kapling 1',
+      harvestDate: new Date('2026-06-23T03:00:00Z'),
+      weightKg: 120,
+    })
+    expect(telegram.sendMessage).toHaveBeenCalledTimes(1)
+    expect(telegram.sendPhoto).not.toHaveBeenCalled()
+    const msg = (telegram.sendMessage as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(msg).toContain('Panen dihapus')
+  })
+
+  it('foto hilang di disk → fallback ke sendMessage', async () => {
+    await notifyHarvestCreated({
+      kaplingName: 'Kapling 1',
+      harvestDate: new Date('2026-06-23T03:00:00Z'),
+      weightKg: 100,
+      photoPath: '/uploads/does-not-exist.jpg',
+    })
+    // sendPhoto was attempted OR skipped, but fallback ensures sendMessage runs.
+    expect(telegram.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('photoPath di luar /uploads/ ditolak (fallback ke teks)', async () => {
+    await notifyHarvestCreated({
+      kaplingName: 'Kapling 1',
+      harvestDate: new Date('2026-06-23T03:00:00Z'),
+      weightKg: 100,
+      photoPath: '/etc/passwd',
+    })
+    expect(telegram.sendPhoto).not.toHaveBeenCalled()
+    expect(telegram.sendMessage).toHaveBeenCalledTimes(1)
   })
 })
