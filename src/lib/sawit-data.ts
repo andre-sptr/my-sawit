@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { getCurrentMonthRange } from '@/lib/date'
-import type { Summary } from '@/lib/types'
+import type { Summary, DropdownItem } from '@/lib/types'
+import { defaultMaintenanceTypes, defaultExpenseCategories, mergeOptions } from '@/lib/types'
 
 export async function getActiveKaplings() {
   return prisma.kapling.findMany({
@@ -137,14 +138,26 @@ export async function getKaplingWorkspace(id: string) {
     return null
   }
 
-  const [harvests, maintenance, expenses, sales] = await Promise.all([
+  const [harvests, maintenance, expenses, sales, maintenanceTypeOptions, expenseCategoryOptions] = await Promise.all([
     prisma.harvest.findMany({ where: { kaplingId: id }, orderBy: { harvestDate: 'desc' } }),
     prisma.maintenance.findMany({ where: { kaplingId: id }, orderBy: { activityDate: 'desc' } }),
     prisma.expense.findMany({ where: { kaplingId: id }, orderBy: { expenseDate: 'desc' } }),
     prisma.sale.findMany({ where: { kaplingId: id }, orderBy: { saleDate: 'desc' } }),
+    getDropdownOptions('maintenanceType'),
+    getDropdownOptions('expenseCategory'),
   ])
 
-  return { kapling, harvests, maintenance, expenses, sales }
+  return { kapling, harvests, maintenance, expenses, sales, maintenanceTypeOptions, expenseCategoryOptions }
+}
+
+export async function getDropdownOptions(group: string): Promise<DropdownItem[]> {
+  const dbOptions = await prisma.dropdownOption.findMany({
+    where: { group },
+    orderBy: { sortOrder: 'asc' },
+    select: { value: true, label: true },
+  })
+  const defaults = group === 'maintenanceType' ? defaultMaintenanceTypes : defaultExpenseCategories
+  return mergeOptions(defaults, dbOptions)
 }
 
 function buildSummary({
@@ -173,3 +186,4 @@ function buildSummary({
     netProfit: totalRevenue - totalExpenses,
   }
 }
+

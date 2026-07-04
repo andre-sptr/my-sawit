@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { saveOptionalPhoto } from '@/lib/uploads'
 import type { ActionResult } from '@/lib/types'
-import { ExpenseCategory, MaintenanceType } from '@prisma/client'
+
 import {
   notifyExpenseCreated,
   notifyExpenseDeleted,
@@ -256,7 +256,7 @@ export async function createMaintenance(
       data: {
         kaplingId,
         activityDate: requiredDate(formData, 'activityDate', 'Tanggal perawatan'),
-        type: requiredText(formData, 'type', 'Jenis perawatan') as MaintenanceType,
+        type: requiredText(formData, 'type', 'Jenis perawatan'),
         cost: optionalNumber(formData, 'cost', 'Biaya perawatan'),
         photoPath,
         note: text(formData, 'note') || null,
@@ -287,7 +287,7 @@ export async function updateMaintenance(
       where: { id: requiredText(formData, 'id', 'Perawatan') },
       data: {
         activityDate: requiredDate(formData, 'activityDate', 'Tanggal perawatan'),
-        type: requiredText(formData, 'type', 'Jenis perawatan') as MaintenanceType,
+        type: requiredText(formData, 'type', 'Jenis perawatan'),
         cost: optionalNumber(formData, 'cost', 'Biaya perawatan'),
         ...(photoPath ? { photoPath } : {}),
         note: text(formData, 'note') || null,
@@ -346,7 +346,7 @@ export async function createExpense(
       data: {
         kaplingId,
         expenseDate: requiredDate(formData, 'expenseDate', 'Tanggal pengeluaran'),
-        category: requiredText(formData, 'category', 'Kategori') as ExpenseCategory,
+        category: requiredText(formData, 'category', 'Kategori'),
         amount: requiredNumber(formData, 'amount', 'Nominal'),
         photoPath,
         note: text(formData, 'note') || null,
@@ -377,7 +377,7 @@ export async function updateExpense(
       where: { id: requiredText(formData, 'id', 'Pengeluaran') },
       data: {
         expenseDate: requiredDate(formData, 'expenseDate', 'Tanggal pengeluaran'),
-        category: requiredText(formData, 'category', 'Kategori') as ExpenseCategory,
+        category: requiredText(formData, 'category', 'Kategori'),
         amount: requiredNumber(formData, 'amount', 'Nominal'),
         ...(photoPath ? { photoPath } : {}),
         note: text(formData, 'note') || null,
@@ -486,6 +486,39 @@ export async function updateSale(
     revalidateKaplingPages(requiredText(formData, 'kaplingId', 'Kapling'))
     return { ok: true, message: 'Hasil panen berhasil diubah.' }
   } catch (error) {
+    return actionError(error)
+  }
+}
+
+export async function addDropdownOption(
+  _prevState: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const group = requiredText(formData, 'group', 'Group')
+    const label = requiredText(formData, 'label', 'Label')
+    // Generate a value key from the label: uppercase, spaces to underscores
+    const value = label.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '')
+    if (!value) throw new Error('Label tidak valid.')
+    // Get the max sort order for the group
+    const maxSort = await prisma.dropdownOption.aggregate({
+      where: { group },
+      _max: { sortOrder: true },
+    })
+    await prisma.dropdownOption.create({
+      data: {
+        group,
+        value,
+        label,
+        sortOrder: (maxSort._max.sortOrder ?? 0) + 1,
+      },
+    })
+    revalidateKaplingPages()
+    return { ok: true, message: `"${label}" berhasil ditambahkan.` }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Unique constraint')) {
+      return { ok: false, message: 'Opsi ini sudah ada.' }
+    }
     return actionError(error)
   }
 }

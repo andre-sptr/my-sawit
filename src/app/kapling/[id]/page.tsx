@@ -11,7 +11,7 @@ export default async function KaplingPage({ params }: { params: Promise<{ id: st
     notFound()
   }
 
-  const { kapling, harvests, maintenance, expenses, sales } = data
+  const { kapling, harvests, maintenance, expenses, sales, maintenanceTypeOptions, expenseCategoryOptions } = data
 
   // ── Kapling nonaktif: tampilkan halaman khusus ──
   if (!kapling.isActive) {
@@ -86,6 +86,8 @@ export default async function KaplingPage({ params }: { params: Promise<{ id: st
         maintenance={maintenance}
         expenses={expenses}
         sales={sales}
+        maintenanceTypeOptions={maintenanceTypeOptions}
+        expenseCategoryOptions={expenseCategoryOptions}
       />
     </div>
   )
