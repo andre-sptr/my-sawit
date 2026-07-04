@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-const maxPhotoSizeBytes = 5 * 1024 * 1024
+const maxPhotoSizeBytes = 10 * 1024 * 1024
 
 export async function saveOptionalPhoto(formData: FormData, fieldName = 'photo') {
   const photo = formData.get(fieldName)
@@ -14,7 +14,7 @@ export async function saveOptionalPhoto(formData: FormData, fieldName = 'photo')
   }
 
   if (photo.size > maxPhotoSizeBytes) {
-    throw new Error('Ukuran foto maksimal 5 MB.')
+    throw new Error('Ukuran foto maksimal 10 MB.')
   }
 
   const buffer = Buffer.from(await photo.arrayBuffer())
