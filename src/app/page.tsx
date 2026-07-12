@@ -3,6 +3,10 @@ import { SummaryCards } from '@/components/summary-cards'
 import { formatCurrency, formatDate, formatJakartaNow, formatKg, getJakartaHour } from '@/lib/date'
 import { getDashboardData } from '@/lib/sawit-data'
 
+// Paksa halaman selalu di-render ulang di server setiap request
+// agar data panen, pendapatan, dan laba selalu ter-update dari DB.
+export const dynamic = 'force-dynamic'
+
 /* ─── Helpers ─── */
 function getGreeting(hour: number) {
   if (hour < 11) return { text: 'Selamat pagi', emoji: '☀️' }

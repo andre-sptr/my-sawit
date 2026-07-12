@@ -3,8 +3,9 @@ const jakartaOffsetHours = 7
 
 export function getCurrentMonthRange(now = new Date()) {
   const { year, month } = getJakartaDateParts(now)
-  const start = new Date(Date.UTC(year, month - 1, 1, -jakartaOffsetHours))
-  const end = new Date(Date.UTC(year, month, 1, -jakartaOffsetHours))
+  // Jakarta = UTC+7: awal bulan 00:00 WIB = hari-sebelumnya 17:00 UTC
+  const start = new Date(Date.UTC(year, month - 1, 1) - jakartaOffsetHours * 60 * 60 * 1000)
+  const end   = new Date(Date.UTC(year, month,     1) - jakartaOffsetHours * 60 * 60 * 1000)
 
   return { start, end }
 }

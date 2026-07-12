@@ -6,6 +6,10 @@ import { SidebarProvider } from "@/components/nav/sidebar-provider";
 import { SidebarShell } from "@/components/nav/sidebar-shell";
 import { MobileTopBar } from "@/components/nav/mobile-top-bar";
 
+// Layout juga query DB (daftar kapling untuk sidebar), sehingga harus dynamic
+// agar sidebar tidak menampilkan kapling lama dari cache build sebelumnya.
+export const dynamic = 'force-dynamic'
+
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
   subsets: ["latin"],
