@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { SummaryCards } from '@/components/summary-cards'
-import { formatCurrency, formatDate, formatJakartaNow, formatKg, getJakartaHour } from '@/lib/date'
+import { MonthPicker } from '@/components/month-picker'
+import { formatCurrency, formatDate, formatJakartaNow, formatKg, getJakartaHour, getJakartaDateParts } from '@/lib/date'
 import { getDashboardData } from '@/lib/sawit-data'
 
 // Paksa halaman selalu di-render ulang di server setiap request
@@ -32,21 +33,35 @@ function SectionHead({ title, sub }: { title: string; sub?: string }) {
 }
 
 /* ─── Main ─── */
-export default async function Home() {
+type PageProps = {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export default async function Home({ searchParams }: PageProps) {
+  const resolvedParams = await searchParams
+  const now = new Date()
+  const currentParts = getJakartaDateParts(now)
+
+  const yParam = typeof resolvedParams.y === 'string' ? Number(resolvedParams.y) : NaN
+  const mParam = typeof resolvedParams.m === 'string' ? Number(resolvedParams.m) : NaN
+
+  const year = Number.isFinite(yParam) && yParam >= 2000 && yParam <= 2100 ? yParam : currentParts.year
+  const month = Number.isFinite(mParam) && mParam >= 1 && mParam <= 12 ? mParam : currentParts.month
+
   const {
     activeKaplings,
     inactiveCount,
     kaplingStats,
     activityFeed,
     summary,
-  } = await getDashboardData()
+  } = await getDashboardData({ year, month })
 
-  const now     = new Date()
   const greeting = getGreeting(getJakartaHour(now))
 
   const dayName   = formatJakartaNow({ weekday: 'long' }, now)
   const dateLabel = formatJakartaNow({ day: 'numeric', month: 'long', year: 'numeric' }, now)
-  const monthLabel = formatJakartaNow({ month: 'long', year: 'numeric' }, now)
+  const selectedDate = new Date(Date.UTC(year, month - 1, 15))
+  const monthLabel = formatJakartaNow({ month: 'long', year: 'numeric' }, selectedDate)
 
   const isProfit = summary.netProfit >= 0
   const maxRevenue = Math.max(...kaplingStats.map(k => k.revenue), 1)
@@ -126,7 +141,7 @@ export default async function Home() {
 
       {/* ── KPI SUMMARY CARDS ───────────────────────────────── */}
       <section style={{ marginBottom: 28 }}>
-        <SectionHead title={`Ringkasan ${monthLabel}`} sub="Data keuangan bulan berjalan" />
+        <MonthPicker year={year} month={month} currentYear={currentParts.year} currentMonth={currentParts.month} />
         <SummaryCards summary={summary} />
       </section>
 

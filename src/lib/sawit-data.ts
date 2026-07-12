@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { getCurrentMonthRange } from '@/lib/date'
+import { getCurrentMonthRange, getMonthRange } from '@/lib/date'
 import type { Summary, DropdownItem } from '@/lib/types'
 import { defaultMaintenanceTypes, defaultExpenseCategories, mergeOptions } from '@/lib/types'
 
@@ -16,8 +16,10 @@ export async function getKaplingById(id: string) {
   })
 }
 
-export async function getDashboardData() {
-  const range = getCurrentMonthRange()
+export async function getDashboardData(options?: { year?: number; month?: number }) {
+  const range = options?.year && options?.month
+    ? getMonthRange(options.year, options.month)
+    : getCurrentMonthRange()
 
   const [
     activeKaplings,

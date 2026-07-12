@@ -1,13 +1,16 @@
 const appTimeZone = 'Asia/Jakarta'
 const jakartaOffsetHours = 7
 
-export function getCurrentMonthRange(now = new Date()) {
-  const { year, month } = getJakartaDateParts(now)
+export function getMonthRange(year: number, month: number) {
   // Jakarta = UTC+7: awal bulan 00:00 WIB = hari-sebelumnya 17:00 UTC
   const start = new Date(Date.UTC(year, month - 1, 1) - jakartaOffsetHours * 60 * 60 * 1000)
   const end   = new Date(Date.UTC(year, month,     1) - jakartaOffsetHours * 60 * 60 * 1000)
-
   return { start, end }
+}
+
+export function getCurrentMonthRange(now = new Date()) {
+  const { year, month } = getJakartaDateParts(now)
+  return getMonthRange(year, month)
 }
 
 // Jam saat ini menurut zona waktu Jakarta (0–23), independen dari TZ server.
@@ -55,7 +58,7 @@ export function formatKg(value: number) {
   }).format(value)} kg`
 }
 
-function getJakartaDateParts(date: Date) {
+export function getJakartaDateParts(date: Date) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: appTimeZone,
     year: 'numeric',
