@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { loginAction } from '@/app/login/actions'
-import { AlertTriangleIcon, EyeIcon, EyeOffIcon } from '@/components/ui/icons'
+import { AlertTriangleIcon, EyeIcon, EyeOffIcon, LockIcon } from '@/components/ui/icons'
 
 function LoginSubmitButton() {
   const { pending } = useFormStatus()
@@ -12,26 +12,63 @@ function LoginSubmitButton() {
       type="submit"
       disabled={pending}
       className="btn-primary"
-      style={{ width: '100%', minBlockSize: 44 }}
+      style={{ width: '100%', minBlockSize: 46, fontSize: '0.9375rem' }}
     >
-      {pending ? 'Memeriksa…' : 'Masuk'}
+      {pending ? (
+        <>
+          <span
+            className="animate-spin"
+            aria-hidden="true"
+            style={{
+              display: 'inline-block',
+              width: 15,
+              height: 15,
+              border: '2px solid rgba(255,255,255,0.35)',
+              borderTopColor: '#fff',
+              borderRadius: '50%',
+            }}
+          />
+          <span>Memeriksa…</span>
+        </>
+      ) : (
+        'Masuk ke Dashboard'
+      )}
     </button>
   )
 }
 
-export function LoginForm() {
+export function LoginForm({ autoFocusUsername = false }: { autoFocusUsername?: boolean }) {
   const [state, formAction] = useActionState(loginAction, null)
   const [showPassword, setShowPassword] = useState(false)
   const hasError = Boolean(state && !state.ok)
 
   return (
-    <form action={formAction} style={{ display: 'grid', gap: 16 }}>
+    <form action={formAction} style={{ display: 'grid', gap: 15 }}>
       <div style={{ display: 'grid', gap: 6 }}>
-        <label
-          htmlFor="login-password"
-          className="input-label"
-        >
-          Password Akses
+        <label htmlFor="login-username" className="input-label">
+          Username
+        </label>
+        <input
+          id="login-username"
+          name="username"
+          type="text"
+          autoComplete="username"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          enterKeyHint="next"
+          required
+          autoFocus={autoFocusUsername}
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? 'login-error' : undefined}
+          className="input-field"
+          placeholder="Masukkan username…"
+        />
+      </div>
+
+      <div style={{ display: 'grid', gap: 6 }}>
+        <label htmlFor="login-password" className="input-label">
+          Password
         </label>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
@@ -41,7 +78,6 @@ export function LoginForm() {
             autoComplete="current-password"
             enterKeyHint="done"
             required
-            autoFocus
             aria-invalid={hasError || undefined}
             aria-describedby={hasError ? 'login-error' : undefined}
             className="input-field"
@@ -90,6 +126,22 @@ export function LoginForm() {
       )}
 
       <LoginSubmitButton />
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          fontSize: '0.75rem',
+          color: 'var(--color-muted)',
+          textAlign: 'center',
+          paddingTop: 2,
+        }}
+      >
+        <LockIcon size={13} style={{ flexShrink: 0, color: 'var(--color-primary-dark)' }} />
+        <span>Sesi permanen aktif hingga Anda keluar · Akses pribadi</span>
+      </div>
     </form>
   )
 }

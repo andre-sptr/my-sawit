@@ -1,5 +1,7 @@
 export const SESSION_COOKIE_NAME = 'rekapal_session'
 export const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
+// Batas maksimum Max-Age cookie browser modern (400 hari) untuk sesi permanen bergulir.
+export const PERMANENT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 400
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -37,10 +39,25 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
   )
 }
 
-export async function deriveSigningSecret(appPassword: string, explicitSecret?: string): Promise<string> {
+export async function deriveSigningSecret(
+  appPassword: string,
+  explicitSecret?: string,
+  appUsername?: string,
+): Promise<string> {
   const custom = explicitSecret?.trim()
-  if (custom) return custom
-  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(`rekapal-session:${appPassword}`))
+  const username = appUsername?.trim() ?? ''
+  if (custom) {
+    if (!username) return custom
+    const digest = await crypto.subtle.digest(
+      'SHA-256',
+      encoder.encode(`rekapal-session:${custom}:${username}:${appPassword}`),
+    )
+    return toBase64Url(new Uint8Array(digest))
+  }
+  const material = username
+    ? `rekapal-session:${username}:${appPassword}`
+    : `rekapal-session:${appPassword}`
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(material))
   return toBase64Url(new Uint8Array(digest))
 }
 
@@ -51,6 +68,14 @@ export async function createSessionToken(
 ): Promise<string> {
   const exp = Math.floor(nowMs / 1000) + ttlSeconds
   const payloadBytes = encoder.encode(JSON.stringify({ exp }))
+  const payloadB64 = toBase64Url(payloadBytes)
+  const key = await importHmacKey(secret)
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadB64))
+  return `${payloadB64}.${toBase64Url(new Uint8Array(sig))}`
+}
+
+export async function createPermanentSessionToken(secret: string): Promise<string> {
+  const payloadBytes = encoder.encode(JSON.stringify({ permanent: true }))
   const payloadB64 = toBase64Url(payloadBytes)
   const key = await importHmacKey(secret)
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadB64))
@@ -82,7 +107,8 @@ export async function verifySessionToken(
   if (!validSig) return false
 
   try {
-    const parsed = JSON.parse(decoder.decode(payloadBytes)) as { exp?: unknown }
+    const parsed = JSON.parse(decoder.decode(payloadBytes)) as { exp?: unknown; permanent?: unknown }
+    if (parsed.permanent === true) return true
     if (typeof parsed.exp !== 'number' || !Number.isFinite(parsed.exp)) return false
     return parsed.exp > Math.floor(nowMs / 1000)
   } catch {

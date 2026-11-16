@@ -2,14 +2,14 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { timingSafeEqualStrings } from '@/lib/security'
 import {
-  createSessionToken,
-  DEFAULT_SESSION_TTL_SECONDS,
+  createPermanentSessionToken,
   deriveSigningSecret,
+  PERMANENT_COOKIE_MAX_AGE_SECONDS,
   SESSION_COOKIE_NAME,
   verifySessionToken,
 } from '@/lib/auth-token'
 
-export { SESSION_COOKIE_NAME }
+export { PERMANENT_COOKIE_MAX_AGE_SECONDS, SESSION_COOKIE_NAME }
 
 const MAX_FAILED_ATTEMPTS = 10
 const RATE_WINDOW_MS = 15 * 60 * 1000
@@ -20,15 +20,29 @@ export function isAuthEnabled(): boolean {
   return Boolean(process.env.APP_PASSWORD?.trim())
 }
 
+export function getConfiguredUsername(): string {
+  return process.env.APP_USERNAME?.trim() ?? ''
+}
+
 export function verifyAppPassword(candidate: string): boolean {
   const expected = process.env.APP_PASSWORD?.trim()
   if (!expected) return true
   return timingSafeEqualStrings(candidate, expected)
 }
 
+export function verifyAppCredentials(username: string, password: string): boolean {
+  const expectedPassword = process.env.APP_PASSWORD?.trim()
+  if (!expectedPassword) return true
+
+  const expectedUsername = getConfiguredUsername()
+  const usernameOk = expectedUsername ? timingSafeEqualStrings(username.trim(), expectedUsername) : true
+  const passwordOk = timingSafeEqualStrings(password, expectedPassword)
+  return usernameOk && passwordOk
+}
+
 async function getSigningSecret(): Promise<string> {
   const password = process.env.APP_PASSWORD?.trim() ?? ''
-  return deriveSigningSecret(password, process.env.AUTH_SECRET)
+  return deriveSigningSecret(password, process.env.AUTH_SECRET, process.env.APP_USERNAME)
 }
 
 export async function isAuthenticated(): Promise<boolean> {
@@ -54,7 +68,7 @@ export async function requirePageAuth(): Promise<void> {
 
 export async function issueSessionCookieValue(): Promise<string> {
   const secret = await getSigningSecret()
-  return createSessionToken(secret, DEFAULT_SESSION_TTL_SECONDS)
+  return createPermanentSessionToken(secret)
 }
 
 export function shouldUseSecureCookie(hdrs: Headers): boolean {

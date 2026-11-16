@@ -5,15 +5,16 @@ import { redirect } from 'next/navigation'
 import {
   checkLoginRateLimit,
   getClientRateLimitKey,
+  getConfiguredUsername,
   isAuthEnabled,
   issueSessionCookieValue,
+  PERMANENT_COOKIE_MAX_AGE_SECONDS,
   recordLoginFailure,
   resetLoginRateLimit,
   SESSION_COOKIE_NAME,
   shouldUseSecureCookie,
-  verifyAppPassword,
+  verifyAppCredentials,
 } from '@/lib/auth'
-import { DEFAULT_SESSION_TTL_SECONDS } from '@/lib/auth-token'
 import type { ActionResult } from '@/lib/types'
 
 export async function loginAction(
@@ -35,15 +36,21 @@ export async function loginAction(
     }
   }
 
-  const raw = formData.get('password')
-  const candidate = typeof raw === 'string' ? raw : ''
-  if (!candidate) {
+  const rawUsername = formData.get('username')
+  const username = typeof rawUsername === 'string' ? rawUsername.trim() : ''
+  const rawPassword = formData.get('password')
+  const password = typeof rawPassword === 'string' ? rawPassword : ''
+
+  if (getConfiguredUsername() && !username) {
+    return { ok: false, message: 'Username wajib diisi.' }
+  }
+  if (!password) {
     return { ok: false, message: 'Password wajib diisi.' }
   }
 
-  if (!verifyAppPassword(candidate)) {
+  if (!verifyAppCredentials(username, password)) {
     recordLoginFailure(rateKey)
-    return { ok: false, message: 'Password salah.' }
+    return { ok: false, message: 'Username atau password salah.' }
   }
 
   resetLoginRateLimit(rateKey)
@@ -53,7 +60,7 @@ export async function loginAction(
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
-    maxAge: DEFAULT_SESSION_TTL_SECONDS,
+    maxAge: PERMANENT_COOKIE_MAX_AGE_SECONDS,
     secure: shouldUseSecureCookie(hdrs),
   })
   redirect('/')
@@ -62,5 +69,5 @@ export async function loginAction(
 export async function logoutAction(): Promise<void> {
   const store = await cookies()
   store.delete(SESSION_COOKIE_NAME)
-  redirect('/login')
+  redirect('/')
 }

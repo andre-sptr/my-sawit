@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { LandingPage } from '@/components/landing/landing-page'
 import { SummaryCards } from '@/components/summary-cards'
 import { MonthPicker } from '@/components/month-picker'
 import {
@@ -13,7 +14,7 @@ import {
   TrendingUpIcon,
   WrenchIcon,
 } from '@/components/ui/icons'
-import { requirePageAuth } from '@/lib/auth'
+import { isAuthenticated } from '@/lib/auth'
 import {
   formatCurrency,
   formatDate,
@@ -124,7 +125,9 @@ type PageProps = {
 }
 
 export default async function Home({ searchParams }: PageProps) {
-  await requirePageAuth()
+  if (!(await isAuthenticated())) {
+    return <LandingPage />
+  }
 
   const resolvedParams = await searchParams
   const now = new Date()
