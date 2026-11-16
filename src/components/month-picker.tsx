@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import { useCallback } from 'react'
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from '@/components/ui/icons'
 
 const monthNames = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -44,92 +45,96 @@ export function MonthPicker({
 
   const label = `${monthNames[month - 1]} ${year}`
 
-  const arrowBtn: React.CSSProperties = {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    border: '1px solid var(--color-border)',
-    background: 'var(--color-surface)',
-    color: 'var(--color-ink)',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 'calc(12px * var(--text-scale, 1))',
-    transition: 'background 0.15s, border-color 0.15s',
-    padding: 0,
-    lineHeight: 1,
-  }
-
-  const disabledArrow: React.CSSProperties = {
-    ...arrowBtn,
-    opacity: 0.3,
-    cursor: 'not-allowed',
-  }
-
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginBottom: 16,
+        flexWrap: 'wrap',
+      }}
+    >
       {/* Title */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <h2 style={{
-          margin: 0,
-          fontSize: 'calc(15px * var(--text-scale, 1))',
-          fontWeight: 700,
-          color: 'var(--color-ink)',
-        }}>
+      <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: '1.0625rem',
+            fontWeight: 800,
+            letterSpacing: '-0.01em',
+            color: 'var(--color-ink)',
+          }}
+        >
           Ringkasan {label}
         </h2>
-        <p style={{
-          margin: '2px 0 0',
-          fontSize: 'calc(12px * var(--text-scale, 1))',
-          color: 'var(--color-muted)',
-        }}>
-          Data keuangan bulan {isCurrentMonth ? 'berjalan' : 'yang dipilih'}
+        <p
+          style={{
+            margin: '2px 0 0',
+            fontSize: '0.8125rem',
+            color: 'var(--color-muted)',
+          }}
+        >
+          {isCurrentMonth ? 'Performa keuangan bulan berjalan' : 'Arsip catatan bulan yang dipilih'}
         </p>
       </div>
 
       {/* Navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-        <button
-          type="button"
-          onClick={goToPrev}
-          style={arrowBtn}
-          aria-label="Bulan sebelumnya"
-          className="card-hover"
-        >
-          ◀
-        </button>
-        <button
-          type="button"
-          onClick={goToNext}
-          style={isFuture ? disabledArrow : arrowBtn}
-          aria-label="Bulan berikutnya"
-          disabled={isFuture}
-          className={isFuture ? undefined : 'card-hover'}
-        >
-          ▶
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
         {!isCurrentMonth && (
           <button
             type="button"
             onClick={() => router.push(pathname)}
             style={{
-              padding: '5px 12px',
+              minBlockSize: 40,
+              padding: '6px 13px',
               borderRadius: 99,
-              border: '1px solid rgba(22, 163, 74, 0.3)',
-              background: 'rgba(22, 163, 74, 0.1)',
-              color: '#16a34a',
+              border: '1px solid rgba(22, 163, 74, 0.35)',
+              background: 'var(--color-primary-light)',
+              color: 'var(--color-primary-dark)',
               cursor: 'pointer',
-              fontSize: 'calc(11px * var(--text-scale, 1))',
-              fontWeight: 600,
-              transition: 'background 0.15s',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
               whiteSpace: 'nowrap',
             }}
             className="card-hover"
           >
-            Hari Ini
+            <CalendarIcon size={14} />
+            <span>Bulan Ini</span>
           </button>
         )}
+
+        <div className="month-stepper" role="group" aria-label="Pilih periode bulan">
+          <button
+            type="button"
+            onClick={goToPrev}
+            className="month-stepper-btn"
+            aria-label="Bulan sebelumnya"
+            title="Bulan sebelumnya"
+          >
+            <ChevronLeftIcon size={17} />
+          </button>
+
+          <span className="month-stepper-label">
+            <CalendarIcon size={14} style={{ color: 'var(--color-primary)' }} />
+            <span>{label}</span>
+          </span>
+
+          <button
+            type="button"
+            onClick={goToNext}
+            className="month-stepper-btn"
+            aria-label="Bulan berikutnya"
+            title={isFuture ? 'Belum ada data bulan mendatang' : 'Bulan berikutnya'}
+            disabled={isFuture}
+          >
+            <ChevronRightIcon size={17} />
+          </button>
+        </div>
       </div>
     </div>
   )

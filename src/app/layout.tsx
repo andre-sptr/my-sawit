@@ -62,9 +62,9 @@ export default async function RootLayout({
               <SidebarShell kaplings={kaplings} authEnabled={authEnabled} />
 
               {/* Main area */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowX: "hidden" }}>
+              <div className="app-main-wrap">
                 {/* Mobile top bar */}
-                <MobileTopBar />
+                <MobileTopBar kaplings={kaplings} />
 
                 {/* Page content */}
                 <main style={{ flex: 1 }}>

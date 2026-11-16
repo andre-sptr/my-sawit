@@ -3,14 +3,7 @@
 import { useRef, useEffect, useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { createKapling } from '@/app/actions'
-
-function XIcon() {
-  return (
-    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-    </svg>
-  )
-}
+import { AlertTriangleIcon, CloseIcon, PalmIcon } from '@/components/ui/icons'
 
 interface AddKaplingModalProps {
   isOpen: boolean
@@ -24,11 +17,27 @@ function SubmitButton() {
       type="submit"
       disabled={pending}
       className="btn-primary"
-      style={{ flex: 1, height: 42 }}
+      style={{ flex: 1, minBlockSize: 44 }}
     >
       {pending ? (
-        <><span className="animate-spin" style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} /> Menyimpan...</>
-      ) : 'Tambah Kapling'}
+        <>
+          <span
+            className="animate-spin"
+            aria-hidden="true"
+            style={{
+              display: 'inline-block',
+              width: 14,
+              height: 14,
+              border: '2px solid rgba(255,255,255,0.35)',
+              borderTopColor: '#fff',
+              borderRadius: '50%',
+            }}
+          />
+          <span>Menyimpan…</span>
+        </>
+      ) : (
+        'Tambah Kapling'
+      )}
     </button>
   )
 }
@@ -51,54 +60,59 @@ function AddKaplingForm({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
   }, [state, onSuccess])
 
   return (
-    <form ref={formRef} action={formAction} style={{ padding: '0 20px 20px' }}>
+    <form ref={formRef} action={formAction} style={{ padding: '0 22px 22px' }}>
       <div style={{ marginBottom: 16 }}>
-        <label htmlFor="modal-kapling-name" style={{
-          display: 'block',
-          fontSize: 'calc(11px * var(--text-scale, 1))',
-          fontWeight: 700,
-          color: 'var(--color-muted)',
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          marginBottom: 6,
-        }}>
+        <label
+          htmlFor="modal-kapling-name"
+          className="input-label"
+          style={{ marginBottom: 6 }}
+        >
           Nama Kapling
         </label>
         <input
           ref={inputRef}
           id="modal-kapling-name"
           name="name"
-          placeholder="Contoh: Blok A, Kapling 01..."
+          placeholder="Contoh: Blok A, Kapling 01…"
           maxLength={100}
           required
           autoFocus
           aria-invalid={hasError || undefined}
           aria-describedby={hasError ? 'modal-kapling-error' : undefined}
           className="input-field"
-          style={{ fontSize: 'calc(14px * var(--text-scale, 1))' }}
         />
       </div>
 
       {hasError && state && (
-        <p
+        <div
           id="modal-kapling-error"
           role="alert"
           aria-live="polite"
-          style={{ margin: '0 0 10px', fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-danger)', fontWeight: 600 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 12,
+            padding: '9px 12px',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--color-danger-bg)',
+            border: '1px solid var(--color-danger-border)',
+            color: 'var(--color-danger)',
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+          }}
         >
-          {state.message}
-        </p>
+          <AlertTriangleIcon size={15} style={{ flexShrink: 0 }} />
+          <span>{state.message}</span>
+        </div>
       )}
+
       <div style={{ display: 'flex', gap: 10 }}>
         <button
           type="button"
           onClick={onCancel}
-          style={{
-            flex: 1, height: 42, borderRadius: 'var(--radius-md)',
-            border: '1.5px solid var(--color-border)', background: 'transparent',
-            color: 'var(--color-muted)', fontWeight: 600, fontSize: 'calc(13px * var(--text-scale, 1))',
-            cursor: 'pointer', transition: 'background 0.15s',
-          }}
+          className="btn-secondary"
+          style={{ flex: 1, minBlockSize: 44 }}
         >
           Batal
         </button>
@@ -161,42 +175,83 @@ export function AddKaplingModal({ isOpen, onClose }: AddKaplingModalProps) {
       {...({ closedby: 'any' } as Record<string, string>)}
     >
       <div
+        className="card animate-scale-in"
         style={{
           width: '100%',
-          background: 'var(--color-surface)',
           borderRadius: 'var(--radius-xl)',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          boxShadow: 'var(--shadow-lg)',
           overflow: 'hidden',
         }}
-        className="animate-scale-in"
       >
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '20px 20px 0',
-          marginBottom: 20,
-        }}>
-          <div>
-            <h2 id="add-kapling-title" style={{ margin: 0, fontSize: 'calc(17px * var(--text-scale, 1))', fontWeight: 700, color: 'var(--color-ink)' }}>
-              Tambah Kapling Baru
-            </h2>
-            <p style={{ margin: '4px 0 0', fontSize: 'calc(13px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>
-              Masukkan nama kapling kebun sawit
-            </p>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '20px 22px 0',
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 11,
+                background: 'var(--color-primary-light)',
+                color: 'var(--color-primary-dark)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <PalmIcon size={20} />
+            </div>
+            <div>
+              <h2
+                id="add-kapling-title"
+                style={{
+                  margin: 0,
+                  fontSize: '1.05rem',
+                  fontWeight: 800,
+                  color: 'var(--color-ink)',
+                }}
+              >
+                Tambah Kapling Baru
+              </h2>
+              <p
+                style={{
+                  margin: '2px 0 0',
+                  fontSize: '0.8125rem',
+                  color: 'var(--color-muted)',
+                }}
+              >
+                Masukkan nama blok atau lahan sawit
+              </p>
+            </div>
           </div>
+
           <button
             type="button"
             onClick={onClose}
             aria-label="Tutup dialog"
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 32, height: 32, borderRadius: 8, border: '1px solid var(--color-border)',
-              background: 'var(--color-surface-2)', color: 'var(--color-muted)',
-              cursor: 'pointer', transition: 'background 0.15s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 38,
+              height: 38,
+              borderRadius: 9,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface-2)',
+              color: 'var(--color-muted)',
+              cursor: 'pointer',
+              flexShrink: 0,
             }}
           >
-            <XIcon />
+            <CloseIcon size={18} />
           </button>
         </div>
 

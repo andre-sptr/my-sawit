@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { loginAction } from '@/app/login/actions'
+import { AlertTriangleIcon, EyeIcon, EyeOffIcon } from '@/components/ui/icons'
 
 function LoginSubmitButton() {
   const { pending } = useFormStatus()
@@ -11,9 +12,9 @@ function LoginSubmitButton() {
       type="submit"
       disabled={pending}
       className="btn-primary"
-      style={{ width: '100%', height: 44, fontSize: 'calc(14px * var(--text-scale, 1))' }}
+      style={{ width: '100%', minBlockSize: 44 }}
     >
-      {pending ? 'Memeriksa...' : 'Masuk'}
+      {pending ? 'Memeriksa…' : 'Masuk'}
     </button>
   )
 }
@@ -28,13 +29,7 @@ export function LoginForm() {
       <div style={{ display: 'grid', gap: 6 }}>
         <label
           htmlFor="login-password"
-          style={{
-            fontSize: 'calc(12px * var(--text-scale, 1))',
-            fontWeight: 700,
-            color: 'var(--color-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}
+          className="input-label"
         >
           Password Akses
         </label>
@@ -50,7 +45,7 @@ export function LoginForm() {
             aria-invalid={hasError || undefined}
             aria-describedby={hasError ? 'login-error' : undefined}
             className="input-field"
-            placeholder="Masukkan password..."
+            placeholder="Masukkan password…"
             style={{ flex: 1 }}
           />
           <button
@@ -58,43 +53,40 @@ export function LoginForm() {
             onClick={() => setShowPassword((prev) => !prev)}
             aria-pressed={showPassword}
             aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+            className="btn-secondary"
             style={{
-              minWidth: 72,
-              minHeight: 42,
+              minWidth: 44,
+              minBlockSize: 44,
               padding: '0 12px',
-              borderRadius: 'var(--radius-md)',
-              border: '1.5px solid var(--color-border)',
-              background: 'var(--color-surface-2)',
-              color: 'var(--color-ink)',
-              fontSize: 'calc(12px * var(--text-scale, 1))',
-              fontWeight: 600,
-              cursor: 'pointer',
               flexShrink: 0,
             }}
           >
-            {showPassword ? 'Tutup' : 'Lihat'}
+            {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
           </button>
         </div>
       </div>
 
       {hasError && state && (
-        <p
+        <div
           id="login-error"
           role="alert"
           aria-live="polite"
           style={{
-            margin: 0,
-            padding: '8px 12px',
-            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-sm)',
             background: 'var(--color-danger-bg)',
             border: '1px solid var(--color-danger-border)',
             color: 'var(--color-danger)',
-            fontSize: 'calc(12px * var(--text-scale, 1))',
+            fontSize: '0.8125rem',
             fontWeight: 600,
           }}
         >
-          {state.message}
-        </p>
+          <AlertTriangleIcon size={16} style={{ flexShrink: 0 }} />
+          <span>{state.message}</span>
+        </div>
       )}
 
       <LoginSubmitButton />

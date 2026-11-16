@@ -1,14 +1,19 @@
+import type { ReactNode } from 'react'
 import type { Summary } from '@/lib/types'
 import { formatCurrency, formatKg } from '@/lib/date'
+import { CoinsIcon, LeafIcon, ReceiptIcon, TrendingDownIcon, TrendingUpIcon } from '@/components/ui/icons'
 
 interface StatCard {
   id: string
   label: string
   value: string
-  icon: string
+  icon: ReactNode
   accentColor: string
+  badgeColor: string
   accentBg: string
-  subLabel?: string
+  iconBorder: string
+  subLabel: string
+  featuredClass?: string
 }
 
 export function SummaryCards({
@@ -23,42 +28,73 @@ export function SummaryCards({
   const isProfit = summary.netProfit >= 0
   const periodSub = isCurrentMonth ? 'Bulan ini' : monthLabel
 
+  const harvestBadge =
+    summary.totalHarvestKg >= 1000
+      ? `~${(summary.totalHarvestKg / 1000).toLocaleString('id-ID', { maximumFractionDigits: 2 })} ton`
+      : periodSub
+
+  const expenseBadge =
+    summary.totalRevenue > 0
+      ? `${Math.round((summary.totalExpenses / summary.totalRevenue) * 100)}% dr omset`
+      : 'Operasional'
+
+  const marginPct =
+    summary.totalRevenue > 0 ? Math.round((summary.netProfit / summary.totalRevenue) * 100) : null
+
+  const profitBadge =
+    marginPct !== null
+      ? `${marginPct >= 0 ? '+' : ''}${marginPct}% margin`
+      : isProfit
+        ? isCurrentMonth
+          ? 'Berjalan'
+          : 'Surplus'
+        : 'Defisit'
+
   const cards: StatCard[] = [
     {
       id: 'total-harvest',
       label: 'Total Panen',
       value: formatKg(summary.totalHarvestKg),
-      icon: '🌿',
-      accentColor: '#16a34a',
+      icon: <LeafIcon size={18} />,
+      accentColor: '#166534',
+      badgeColor: '#166534',
       accentBg: '#dcfce7',
-      subLabel: periodSub,
+      iconBorder: 'rgba(22, 163, 74, 0.22)',
+      subLabel: harvestBadge,
     },
     {
       id: 'total-revenue',
       label: 'Pendapatan',
       value: formatCurrency(summary.totalRevenue),
-      icon: '💰',
-      accentColor: '#f59e0b',
-      accentBg: '#fef9c3',
-      subLabel: 'Dari penjualan',
+      icon: <CoinsIcon size={18} />,
+      accentColor: '#92400e',
+      badgeColor: '#78350f',
+      accentBg: '#fef3c7',
+      iconBorder: 'rgba(217, 119, 6, 0.24)',
+      subLabel: 'Penjualan TBS',
     },
     {
       id: 'total-expenses',
       label: 'Pengeluaran',
       value: formatCurrency(summary.totalExpenses),
-      icon: '📋',
-      accentColor: '#6b7280',
-      accentBg: '#f3f4f6',
-      subLabel: 'Operasional',
+      icon: <ReceiptIcon size={18} />,
+      accentColor: '#334155',
+      badgeColor: '#334155',
+      accentBg: '#f1f5f9',
+      iconBorder: 'rgba(100, 116, 139, 0.22)',
+      subLabel: expenseBadge,
     },
     {
       id: 'net-profit',
       label: 'Laba Bersih',
       value: formatCurrency(summary.netProfit),
-      icon: isProfit ? '📈' : '📉',
-      accentColor: isProfit ? '#16a34a' : '#dc2626',
+      icon: isProfit ? <TrendingUpIcon size={18} /> : <TrendingDownIcon size={18} />,
+      accentColor: isProfit ? '#166534' : '#b91c1c',
+      badgeColor: isProfit ? '#166534' : '#b91c1c',
       accentBg: isProfit ? '#dcfce7' : '#fee2e2',
-      subLabel: isProfit ? (isCurrentMonth ? 'Bulan berjalan' : 'Surplus') : 'Perlu perhatian',
+      iconBorder: isProfit ? 'rgba(22, 163, 74, 0.28)' : 'rgba(220, 38, 38, 0.28)',
+      subLabel: profitBadge,
+      featuredClass: isProfit ? 'kpi-card-featured-profit' : 'kpi-card-featured-loss',
     },
   ]
 
@@ -71,72 +107,63 @@ export function SummaryCards({
         <div
           key={card.id}
           id={`stat-card-${card.id}`}
-          style={{
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '14px',
-            boxShadow: 'var(--shadow-sm)',
-            animationDelay: `${i * 60}ms`,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-            transition: 'box-shadow 0.2s, transform 0.15s',
-          }}
-          className="animate-fade-up card-hover"
+          style={{ animationDelay: `${i * 55}ms` }}
+          className={`kpi-card animate-fade-up card-hover${card.featuredClass ? ` ${card.featuredClass}` : ''}`}
         >
-          {/* Icon + accent strip */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: card.accentBg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 'calc(17px * var(--text-scale, 1))',
-              flexShrink: 0,
-            }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: card.accentBg,
+                border: `1px solid ${card.iconBorder}`,
+                color: card.accentColor,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
               {card.icon}
             </div>
-            <div style={{
-              fontSize: 'calc(9px * var(--text-scale, 1))',
-              fontWeight: 700,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: card.accentColor,
-              background: card.accentBg,
-              padding: '3px 7px',
-              borderRadius: 99,
-              whiteSpace: 'nowrap',
-            }}>
+            <span
+              className="font-mono-num"
+              style={{
+                fontSize: '0.6875rem',
+                fontWeight: 700,
+                letterSpacing: '0.01em',
+                color: card.badgeColor,
+                background: card.accentBg,
+                padding: '3px 8px',
+                borderRadius: 99,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
               {card.subLabel}
-            </div>
+            </span>
           </div>
 
-          {/* Value */}
-          <div>
-            <p style={{
-              margin: 0,
-              fontSize: 'calc(11px * var(--text-scale, 1))',
-              fontWeight: 600,
-              color: 'var(--color-muted)',
-              letterSpacing: '0.02em',
-              marginBottom: 4,
-            }}>
+          <div style={{ minWidth: 0 }}>
+            <p
+              style={{
+                margin: '0 0 4px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: 'var(--color-muted)',
+                letterSpacing: '0.01em',
+              }}
+            >
               {card.label}
             </p>
-            <p style={{
-              margin: 0,
-              fontSize: 'calc(16px * var(--text-scale, 1))',
-              fontWeight: 700,
-              color: card.id === 'net-profit' ? card.accentColor : 'var(--color-ink)',
-              lineHeight: 1.2,
-              fontFamily: 'var(--font-plus-jakarta), sans-serif',
-              fontVariantNumeric: 'tabular-nums',
-              wordBreak: 'break-all',
-            }}>
+            <p
+              className="font-mono-num kpi-value"
+              style={{
+                color: card.id === 'net-profit' ? card.accentColor : 'var(--color-ink)',
+              }}
+            >
               {card.value}
             </p>
           </div>
