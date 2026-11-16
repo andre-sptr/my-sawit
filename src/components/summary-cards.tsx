@@ -11,8 +11,17 @@ interface StatCard {
   subLabel?: string
 }
 
-export function SummaryCards({ summary }: { summary: Summary }) {
+export function SummaryCards({
+  summary,
+  isCurrentMonth = true,
+  monthLabel = 'Bulan ini',
+}: {
+  summary: Summary
+  isCurrentMonth?: boolean
+  monthLabel?: string
+}) {
   const isProfit = summary.netProfit >= 0
+  const periodSub = isCurrentMonth ? 'Bulan ini' : monthLabel
 
   const cards: StatCard[] = [
     {
@@ -22,7 +31,7 @@ export function SummaryCards({ summary }: { summary: Summary }) {
       icon: '🌿',
       accentColor: '#16a34a',
       accentBg: '#dcfce7',
-      subLabel: 'Bulan ini',
+      subLabel: periodSub,
     },
     {
       id: 'total-revenue',
@@ -49,13 +58,13 @@ export function SummaryCards({ summary }: { summary: Summary }) {
       icon: isProfit ? '📈' : '📉',
       accentColor: isProfit ? '#16a34a' : '#dc2626',
       accentBg: isProfit ? '#dcfce7' : '#fee2e2',
-      subLabel: isProfit ? 'Bulan berjalan' : 'Perlu perhatian',
+      subLabel: isProfit ? (isCurrentMonth ? 'Bulan berjalan' : 'Surplus') : 'Perlu perhatian',
     },
   ]
 
   return (
     <section
-      aria-label="Ringkasan statistik bulan ini"
+      aria-label={`Ringkasan statistik ${periodSub}`}
       className="grid-stats-4"
     >
       {cards.map((card, i) => (

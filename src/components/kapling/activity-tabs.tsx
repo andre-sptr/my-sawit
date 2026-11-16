@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useActionState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Expense, Harvest, Maintenance, Sale } from '@prisma/client'
 import {
   createExpense, createHarvest, createMaintenance, createSale,
@@ -8,9 +9,16 @@ import {
   updateExpense, updateHarvest, updateMaintenance, updateSale,
   deactivateKapling, updateKapling, addDropdownOption,
 } from '@/app/actions'
-import { formatCurrency, formatDate, formatKg, toDateInputValue } from '@/lib/date'
+import {
+  formatCurrency,
+  formatDate,
+  formatJakartaMonthYear,
+  formatKg,
+  getJakartaYearMonthKey,
+  toDateInputValue,
+} from '@/lib/date'
 import { useFormStatus } from 'react-dom'
-import type { ActionResult, DropdownItem } from '@/lib/types'
+import { mergeOptions, type ActionResult, type DropdownItem } from '@/lib/types'
 
 /* ─── Icons ─── */
 function PlusIcon() {
@@ -97,14 +105,16 @@ function FormGrid({ children }: { children: React.ReactNode }) {
 
 /* ─── Creatable Select (dropdown with "+ Tambah baru" option) ─── */
 function CreatableSelect({
-  name, options, group, defaultValue,
+  name, kaplingId, items, group, defaultValue, onOptionAdded,
 }: {
   name: string
-  options: DropdownItem[]
+  kaplingId: string
+  items: DropdownItem[]
   group: string // "maintenanceType" | "expenseCategory"
   defaultValue?: string
+  onOptionAdded: (item: DropdownItem) => void
 }) {
-  const [items, setItems] = useState<DropdownItem[]>(options)
+  const router = useRouter()
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [saving, setSaving] = useState(false)
@@ -124,15 +134,17 @@ function CreatableSelect({
     const fd = new FormData()
     fd.set('group', group)
     fd.set('label', label)
+    fd.set('kaplingId', kaplingId)
     const result = await addDropdownOption(null, fd)
     setSaving(false)
     if (result.ok) {
       const value = label.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '')
       const newItem = { value, label }
-      setItems(prev => [...prev, newItem])
+      onOptionAdded(newItem)
       setSelectedValue(value)
       setNewLabel('')
       setAdding(false)
+      router.refresh()
     } else {
       setError(result.message)
     }
@@ -154,6 +166,7 @@ function CreatableSelect({
           type="button"
           onClick={() => setAdding(v => !v)}
           title="Tambah opsi baru"
+          aria-label={adding ? 'Tutup form tambah opsi' : 'Tambah opsi baru'}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 36, height: 36, borderRadius: 8, flexShrink: 0,
@@ -177,9 +190,15 @@ function CreatableSelect({
             className={inputCls}
             type="text"
             placeholder="Nama opsi baru..."
+            maxLength={60}
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                handleAdd()
+              }
+            }}
             style={{ flex: 1 }}
             disabled={saving}
           />
@@ -200,7 +219,7 @@ function CreatableSelect({
           </button>
         </div>
       )}
-      {error && <p style={{ margin: 0, fontSize: 'calc(11px * var(--text-scale, 1))', color: 'var(--color-danger)' }}>{error}</p>}
+      {error && <p aria-live="polite" style={{ margin: 0, fontSize: 'calc(11px * var(--text-scale, 1))', color: 'var(--color-danger)' }}>{error}</p>}
     </div>
   )
 }
@@ -307,11 +326,38 @@ function ItemActions({
 /* ─── Edit Form Wrapper ─── */
 function EditForm({ action, children }: { action: SAction; children: React.ReactNode }) {
   const [state, formAction] = useActionState(action, null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  useEffect(() => {
+    if (!state?.ok || !formRef.current) return
+    const fileInput = formRef.current.querySelector<HTMLInputElement>('input[type="file"]')
+    if (fileInput) fileInput.value = ''
+    const removeCheckbox = formRef.current.querySelector<HTMLInputElement>('input[name="removePhoto"]')
+    if (removeCheckbox) removeCheckbox.checked = false
+  }, [state])
+
   return (
-    <form action={formAction}>
+    <form ref={formRef} action={formAction}>
       {children}
       {state && <div style={{ padding: '0 0 8px' }}><ActionMsg state={state} /></div>}
     </form>
+  )
+}
+
+function RemovePhotoCheckbox() {
+  return (
+    <label style={{
+      gridColumn: '1/-1',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 8,
+      fontSize: 'calc(12px * var(--text-scale, 1))',
+      color: 'var(--color-muted)',
+      cursor: 'pointer',
+    }}>
+      <input type="checkbox" name="removePhoto" value="1" />
+      Hapus foto saat ini
+    </label>
   )
 }
 
@@ -341,7 +387,7 @@ function HarvestTab({ kaplingId, items }: { kaplingId: string; items: Harvest[] 
             <span style={{ fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>{formatDate(item.harvestDate)}</span>
           </div>
           {item.note && <p style={{ margin: '4px 0 0', fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>{item.note}</p>}
-          {item.photoPath && <a href={item.photoPath} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-info)', marginTop: 4 }}><PhotoIcon /> Lihat foto</a>}
+          {item.photoPath && <a href={item.photoPath} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-info)', marginTop: 4 }}><PhotoIcon /> Lihat foto</a>}
           <ItemActions
             deleteAction={deleteHarvest}
             deleteHiddenFields={{ id: item.id, kaplingId: item.kaplingId }}
@@ -354,6 +400,7 @@ function HarvestTab({ kaplingId, items }: { kaplingId: string; items: Harvest[] 
                   <label className={labelCls}>Tanggal <input className={inputCls} type="date" name="harvestDate" defaultValue={toDateInputValue(item.harvestDate)} required /></label>
                   <label className={labelCls}>Berat (kg) <input className={inputCls} type="number" step="0.01" name="weightKg" defaultValue={item.weightKg} required /></label>
                   <label className={labelCls}>Ganti Foto <input className={inputCls} type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></label>
+                  {item.photoPath && <RemovePhotoCheckbox />}
                   <label className={labelCls} style={{ gridColumn: '1/-1' }}>Catatan <textarea className={inputCls} name="note" rows={2} defaultValue={item.note ?? ''} style={{ resize: 'vertical', paddingTop: 8 }} /></label>
                   <div style={{ gridColumn: '1/-1' }}><SubmitBtn label="Update Panenan" /></div>
                 </FormGrid>
@@ -373,8 +420,16 @@ const maintenanceTypeColors: Record<string, { bg: string; color: string }> = {
   PUPUK: { bg: '#eff6ff', color: '#2563eb' },
 }
 
+function mergeAddedOption(prev: DropdownItem[], next: DropdownItem): DropdownItem[] {
+  return prev.some((o) => o.value === next.value) ? prev : [...prev, next]
+}
+
 function MaintenanceTab({ kaplingId, items, typeOptions }: { kaplingId: string; items: Maintenance[]; typeOptions: DropdownItem[] }) {
-  const typeLabel = Object.fromEntries(typeOptions.map(o => [o.value, o.label]))
+  const [addedOptions, setAddedOptions] = useState<DropdownItem[]>([])
+  const options = mergeOptions(typeOptions, addedOptions)
+  const handleAdded = (item: DropdownItem) => setAddedOptions((prev) => mergeAddedOption(prev, item))
+  const typeLabel = Object.fromEntries(options.map(o => [o.value, o.label]))
+
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <AddFormSection title="Tambah Perawatan" action={createMaintenance}>
@@ -382,7 +437,7 @@ function MaintenanceTab({ kaplingId, items, typeOptions }: { kaplingId: string; 
           <FormGrid>
             <input type="hidden" name="kaplingId" value={kaplingId} />
             <label className={labelCls}>Tanggal <input className={inputCls} type="date" name="activityDate" required /></label>
-            <label className={labelCls}>Jenis <CreatableSelect name="type" options={typeOptions} group="maintenanceType" /></label>
+            <label className={labelCls}>Jenis <CreatableSelect name="type" kaplingId={kaplingId} items={options} group="maintenanceType" onOptionAdded={handleAdded} /></label>
             <label className={labelCls}>Biaya (Rp) <input className={inputCls} type="number" step="1" name="cost" /></label>
             <label className={labelCls}>Foto <input className={inputCls} type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></label>
             <label className={labelCls} style={{ gridColumn: '1/-1' }}>Catatan <textarea className={inputCls} name="note" rows={2} style={{ resize: 'vertical', paddingTop: 8 }} /></label>
@@ -405,7 +460,7 @@ function MaintenanceTab({ kaplingId, items, typeOptions }: { kaplingId: string; 
               <span style={{ fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>{formatDate(item.activityDate)}</span>
             </div>
             {item.note && <p style={{ margin: '4px 0 0', fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>{item.note}</p>}
-            {item.photoPath && <a href={item.photoPath} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-info)', marginTop: 4 }}><PhotoIcon /> Lihat foto</a>}
+            {item.photoPath && <a href={item.photoPath} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-info)', marginTop: 4 }}><PhotoIcon /> Lihat foto</a>}
             <ItemActions
               deleteAction={deleteMaintenance}
               deleteHiddenFields={{ id: item.id, kaplingId: item.kaplingId }}
@@ -416,9 +471,10 @@ function MaintenanceTab({ kaplingId, items, typeOptions }: { kaplingId: string; 
                     <input type="hidden" name="id" value={item.id} />
                     <input type="hidden" name="kaplingId" value={item.kaplingId} />
                     <label className={labelCls}>Tanggal <input className={inputCls} type="date" name="activityDate" defaultValue={toDateInputValue(item.activityDate)} required /></label>
-                    <label className={labelCls}>Jenis <CreatableSelect name="type" options={typeOptions} group="maintenanceType" defaultValue={item.type} /></label>
+                    <label className={labelCls}>Jenis <CreatableSelect name="type" kaplingId={kaplingId} items={options} group="maintenanceType" defaultValue={item.type} onOptionAdded={handleAdded} /></label>
                     <label className={labelCls}>Biaya (Rp) <input className={inputCls} type="number" step="1" name="cost" defaultValue={item.cost ?? ''} /></label>
                     <label className={labelCls}>Ganti Foto <input className={inputCls} type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></label>
+                    {item.photoPath && <RemovePhotoCheckbox />}
                     <label className={labelCls} style={{ gridColumn: '1/-1' }}>Catatan <textarea className={inputCls} name="note" rows={2} defaultValue={item.note ?? ''} style={{ resize: 'vertical', paddingTop: 8 }} /></label>
                     <div style={{ gridColumn: '1/-1' }}><SubmitBtn label="Update Perawatan" /></div>
                   </FormGrid>
@@ -434,7 +490,11 @@ function MaintenanceTab({ kaplingId, items, typeOptions }: { kaplingId: string; 
 
 /* ─────────────── EXPENSE TAB ─────────────── */
 function ExpenseTab({ kaplingId, items, categoryOptions }: { kaplingId: string; items: Expense[]; categoryOptions: DropdownItem[] }) {
-  const categoryLabel = Object.fromEntries(categoryOptions.map(o => [o.value, o.label]))
+  const [addedOptions, setAddedOptions] = useState<DropdownItem[]>([])
+  const options = mergeOptions(categoryOptions, addedOptions)
+  const handleAdded = (item: DropdownItem) => setAddedOptions((prev) => mergeAddedOption(prev, item))
+  const categoryLabel = Object.fromEntries(options.map(o => [o.value, o.label]))
+
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <AddFormSection title="Tambah Pengeluaran" action={createExpense}>
@@ -442,7 +502,7 @@ function ExpenseTab({ kaplingId, items, categoryOptions }: { kaplingId: string; 
           <FormGrid>
             <input type="hidden" name="kaplingId" value={kaplingId} />
             <label className={labelCls}>Tanggal <input className={inputCls} type="date" name="expenseDate" required /></label>
-            <label className={labelCls}>Kategori <CreatableSelect name="category" options={categoryOptions} group="expenseCategory" /></label>
+            <label className={labelCls}>Kategori <CreatableSelect name="category" kaplingId={kaplingId} items={options} group="expenseCategory" onOptionAdded={handleAdded} /></label>
             <label className={labelCls}>Nominal (Rp) <input className={inputCls} type="number" step="1" name="amount" required /></label>
             <label className={labelCls}>Foto <input className={inputCls} type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></label>
             <label className={labelCls} style={{ gridColumn: '1/-1' }}>Catatan <textarea className={inputCls} name="note" rows={2} style={{ resize: 'vertical', paddingTop: 8 }} /></label>
@@ -465,7 +525,7 @@ function ExpenseTab({ kaplingId, items, categoryOptions }: { kaplingId: string; 
             <span style={{ fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>{formatDate(item.expenseDate)}</span>
           </div>
           {item.note && <p style={{ margin: '4px 0 0', fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>{item.note}</p>}
-          {item.photoPath && <a href={item.photoPath} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-info)', marginTop: 4 }}><PhotoIcon /> Lihat foto</a>}
+          {item.photoPath && <a href={item.photoPath} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-info)', marginTop: 4 }}><PhotoIcon /> Lihat foto</a>}
           <ItemActions
             deleteAction={deleteExpense}
             deleteHiddenFields={{ id: item.id, kaplingId: item.kaplingId }}
@@ -476,9 +536,10 @@ function ExpenseTab({ kaplingId, items, categoryOptions }: { kaplingId: string; 
                   <input type="hidden" name="id" value={item.id} />
                   <input type="hidden" name="kaplingId" value={item.kaplingId} />
                   <label className={labelCls}>Tanggal <input className={inputCls} type="date" name="expenseDate" defaultValue={toDateInputValue(item.expenseDate)} required /></label>
-                  <label className={labelCls}>Kategori <CreatableSelect name="category" options={categoryOptions} group="expenseCategory" defaultValue={item.category} /></label>
+                  <label className={labelCls}>Kategori <CreatableSelect name="category" kaplingId={kaplingId} items={options} group="expenseCategory" defaultValue={item.category} onOptionAdded={handleAdded} /></label>
                   <label className={labelCls}>Nominal (Rp) <input className={inputCls} type="number" step="1" name="amount" defaultValue={item.amount} required /></label>
                   <label className={labelCls}>Ganti Foto <input className={inputCls} type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></label>
+                  {item.photoPath && <RemovePhotoCheckbox />}
                   <label className={labelCls} style={{ gridColumn: '1/-1' }}>Catatan <textarea className={inputCls} name="note" rows={2} defaultValue={item.note ?? ''} style={{ resize: 'vertical', paddingTop: 8 }} /></label>
                   <div style={{ gridColumn: '1/-1' }}><SubmitBtn label="Update Pengeluaran" /></div>
                 </FormGrid>
@@ -521,7 +582,7 @@ function SaleTab({ kaplingId, items }: { kaplingId: string; items: Sale[] }) {
             <span style={{ fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-muted)', flexShrink: 0 }}>{formatDate(item.saleDate)}</span>
           </div>
           {item.note && <p style={{ margin: '4px 0 0', fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>{item.note}</p>}
-          {item.photoPath && <a href={item.photoPath} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-info)', marginTop: 4 }}><PhotoIcon /> Lihat foto</a>}
+          {item.photoPath && <a href={item.photoPath} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-info)', marginTop: 4 }}><PhotoIcon /> Lihat foto</a>}
           <ItemActions
             deleteAction={deleteSale}
             deleteHiddenFields={{ id: item.id, kaplingId: item.kaplingId }}
@@ -535,6 +596,7 @@ function SaleTab({ kaplingId, items }: { kaplingId: string; items: Sale[] }) {
                   <label className={labelCls}>Berat (kg) <input className={inputCls} type="number" step="0.01" name="weightKg" defaultValue={item.weightKg} required /></label>
                   <label className={labelCls}>Harga/kg (Rp) <input className={inputCls} type="number" step="1" name="pricePerKg" defaultValue={item.pricePerKg} required /></label>
                   <label className={labelCls}>Ganti Foto <input className={inputCls} type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></label>
+                  {item.photoPath && <RemovePhotoCheckbox />}
                   <label className={labelCls} style={{ gridColumn: '1/-1' }}>Catatan <textarea className={inputCls} name="note" rows={2} defaultValue={item.note ?? ''} style={{ resize: 'vertical', paddingTop: 8 }} /></label>
                   <div style={{ gridColumn: '1/-1' }}><SubmitBtn label="Update Penjualan" /></div>
                 </FormGrid>
@@ -622,8 +684,10 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
   )
 }
 
-function LaporanTab({ harvests, maintenance, expenses, sales }: {
-  harvests: Harvest[]; maintenance: Maintenance[]; expenses: Expense[]; sales: Sale[]
+const COST_COLORS = ['#6366f1', '#0284c7', '#10b981', '#8b5cf6', '#ec4899', '#6b7280']
+
+function LaporanTab({ harvests, maintenance, expenses, sales, expenseCategoryOptions }: {
+  harvests: Harvest[]; maintenance: Maintenance[]; expenses: Expense[]; sales: Sale[]; expenseCategoryOptions: DropdownItem[]
 }) {
   // ── Kalkulasi Total ──────────────────────────────────────
   const totalHarvestKg   = harvests.reduce((s, h) => s + h.weightKg, 0)
@@ -638,30 +702,41 @@ function LaporanTab({ harvests, maintenance, expenses, sales }: {
   const profitMargin     = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
   const isProfit         = netProfit >= 0
 
-  // Total gaji vs perawatan vs lain-lain
-  const totalGaji        = expenses.filter(e => e.category === 'GAJI_KARYAWAN').reduce((s, e) => s + e.amount, 0)
-  const totalLainlain    = expenses.filter(e => e.category === 'LAIN_LAIN').reduce((s, e) => s + e.amount, 0)
-  const maxCostItem      = Math.max(totalGaji, totalMaintCost, totalLainlain)
+  // Breakdown dinamis seluruh kategori pengeluaran (default + kustom) + perawatan
+  const categoryLabels = Object.fromEntries(expenseCategoryOptions.map((o) => [o.value, o.label]))
+  const expenseMap = new Map<string, number>()
+  for (const e of expenses) {
+    expenseMap.set(e.category, (expenseMap.get(e.category) ?? 0) + e.amount)
+  }
+  const costBreakdownItems = [
+    ...Array.from(expenseMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, value], idx) => ({
+        key: cat,
+        label: categoryLabels[cat] ?? cat,
+        value,
+        color: cat === 'GAJI_KARYAWAN' ? '#6366f1' : cat === 'LAIN_LAIN' ? '#6b7280' : COST_COLORS[idx % COST_COLORS.length],
+        icon: cat === 'GAJI_KARYAWAN' ? '👷' : cat === 'LAIN_LAIN' ? '📦' : '🧾',
+      })),
+    { key: '__MAINT__', label: 'Biaya Perawatan', value: totalMaintCost, color: '#f59e0b', icon: '🔧' },
+  ]
+  const maxCostItem = Math.max(...costBreakdownItems.map((i) => i.value), 0)
 
-  // ── Laporan Per Bulan ────────────────────────────────────
+  // ── Laporan Per Bulan (berbasis kalender Jakarta) ────────
   type MonthData = {
     harvestKg: number; revenue: number; maintCost: number; expCost: number; saleCount: number; harvestCount: number
   }
   const monthMap = new Map<string, MonthData>()
 
-  const getMonthKey = (date: Date) => {
-    const d = new Date(date)
-    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-  }
   const getOrCreate = (key: string): MonthData => {
     if (!monthMap.has(key)) monthMap.set(key, { harvestKg: 0, revenue: 0, maintCost: 0, expCost: 0, saleCount: 0, harvestCount: 0 })
     return monthMap.get(key)!
   }
 
-  harvests.forEach(h    => { const m = getOrCreate(getMonthKey(h.harvestDate)); m.harvestKg += h.weightKg; m.harvestCount++ })
-  sales.forEach(s       => { const m = getOrCreate(getMonthKey(s.saleDate));    m.revenue += s.weightKg * s.pricePerKg; m.saleCount++ })
-  maintenance.forEach(m => { const mo = getOrCreate(getMonthKey(m.activityDate)); mo.maintCost += m.cost ?? 0 })
-  expenses.forEach(e    => { const m = getOrCreate(getMonthKey(e.expenseDate)); m.expCost += e.amount })
+  harvests.forEach(h    => { const m = getOrCreate(getJakartaYearMonthKey(h.harvestDate)); m.harvestKg += h.weightKg; m.harvestCount++ })
+  sales.forEach(s       => { const m = getOrCreate(getJakartaYearMonthKey(s.saleDate));    m.revenue += s.weightKg * s.pricePerKg; m.saleCount++ })
+  maintenance.forEach(m => { const mo = getOrCreate(getJakartaYearMonthKey(m.activityDate)); mo.maintCost += m.cost ?? 0 })
+  expenses.forEach(e    => { const m = getOrCreate(getJakartaYearMonthKey(e.expenseDate)); m.expCost += e.amount })
 
   const months = Array.from(monthMap.entries())
     .sort(([a], [b]) => b.localeCompare(a)) // terbaru di atas
@@ -669,7 +744,7 @@ function LaporanTab({ harvests, maintenance, expenses, sales }: {
       const [year, month] = key.split('-').map(Number)
       const totalCost = data.maintCost + data.expCost
       const profit    = data.revenue - totalCost
-      const label     = new Date(Date.UTC(year, month - 1, 15)).toLocaleString('id-ID', { month: 'long', year: 'numeric' })
+      const label     = formatJakartaMonthYear(year, month)
       return { key, label, ...data, totalCost, profit }
     })
 
@@ -714,13 +789,13 @@ function LaporanTab({ harvests, maintenance, expenses, sales }: {
           <KpiCard icon="⚖️" label="Harga Jual Rata-rata" value={avgPricePerKg > 0 ? `Rp ${Math.round(avgPricePerKg).toLocaleString('id-ID')}/kg` : '—'}
             sub="" />
           <KpiCard icon="🧮" label="Biaya per kg Panen" value={costPerKg > 0 ? `Rp ${Math.round(costPerKg).toLocaleString('id-ID')}/kg` : '—'}
-            sub="" color={costPerKg < avgPricePerKg ? 'var(--color-success)' : 'var(--color-danger)'} />
+            sub="" color={totalHarvestKg > 0 && avgPricePerKg > 0 && costPerKg < avgPricePerKg ? 'var(--color-success)' : totalHarvestKg === 0 ? 'var(--color-ink)' : 'var(--color-danger)'} />
           <KpiCard icon="📦" label="Volume Terjual" value={formatKg(totalSaleVolume)}
             sub={`${sales.length} transaksi jual`} />
           <KpiCard icon="🔄" label="Rasio Jual/Panen"
             value={totalHarvestKg > 0 ? `${((totalSaleVolume / totalHarvestKg) * 100).toFixed(1)}%` : '—'}
             sub=""
-            color={totalSaleVolume / totalHarvestKg >= 0.95 ? 'var(--color-success)' : 'var(--color-warning)'} />
+            color={totalHarvestKg === 0 ? 'var(--color-ink)' : totalSaleVolume / totalHarvestKg >= 0.95 ? 'var(--color-success)' : 'var(--color-warning)'} />
         </div>
       </section>
 
@@ -735,12 +810,8 @@ function LaporanTab({ harvests, maintenance, expenses, sales }: {
           display: 'grid',
           gap: 14,
         }}>
-          {[
-            { label: 'Gaji Karyawan', value: totalGaji, color: '#6366f1', icon: '👷' },
-            { label: 'Biaya Perawatan', value: totalMaintCost, color: '#f59e0b', icon: '🔧' },
-            { label: 'Lain-lain', value: totalLainlain, color: '#6b7280', icon: '📦' },
-          ].map(item => (
-            <div key={item.label}>
+          {costBreakdownItems.map(item => (
+            <div key={item.key}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 'calc(13px * var(--text-scale, 1))' }}>{item.icon}</span>
@@ -960,7 +1031,7 @@ export function ActivityTabs({ kaplingId, kaplingName, isActive, harvests, maint
         {activeTab === 'perawatan'   && <MaintenanceTab kaplingId={kaplingId} items={maintenance} typeOptions={maintenanceTypeOptions} />}
         {activeTab === 'pengeluaran' && <ExpenseTab     kaplingId={kaplingId} items={expenses} categoryOptions={expenseCategoryOptions} />}
         {activeTab === 'penjualan'   && <SaleTab        kaplingId={kaplingId} items={sales} />}
-        {activeTab === 'laporan'     && <LaporanTab     harvests={harvests} maintenance={maintenance} expenses={expenses} sales={sales} />}
+        {activeTab === 'laporan'     && <LaporanTab     harvests={harvests} maintenance={maintenance} expenses={expenses} sales={sales} expenseCategoryOptions={expenseCategoryOptions} />}
         {activeTab === 'pengaturan'  && <SettingsTab    kaplingId={kaplingId} kaplingName={kaplingName} isActive={isActive} />}
       </div>
     </div>

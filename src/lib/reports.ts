@@ -1,47 +1,14 @@
 import { prisma } from '@/lib/prisma'
-import { formatCurrency, formatKg } from '@/lib/date'
+import {
+  formatCurrencyCompact,
+  formatDate,
+  formatKg,
+  getThisMonthRange,
+  getThisWeekRange,
+  getTodayRange,
+} from '@/lib/date'
 
-// ── date range helpers ────────────────────────────────────────────────
-// Semua rentang dihitung berbasis Asia/Jakarta (UTC+7). Rentang bersifat
-// [start, end) — end eksklusif — sama dengan konvensi getCurrentMonthRange.
-const JAKARTA_OFFSET_H = 7
-const REPORT_TIME_ZONE = 'Asia/Jakarta'
-
-function jakartaTodayParts(now: Date) {
-  // Konversi ke jam Jakarta lalu ambil Y/M/D-nya. Tidak pakai Intl karena
-  // di server test-env stabil dengan aritmetika offset.
-  const jakartaMs = now.getTime() + JAKARTA_OFFSET_H * 3600 * 1000
-  const d = new Date(jakartaMs)
-  return {
-    year: d.getUTCFullYear(),
-    month: d.getUTCMonth() + 1,
-    day: d.getUTCDate(),
-    weekday: d.getUTCDay(), // 0 = Minggu
-  }
-}
-
-export function getTodayRange(now = new Date()) {
-  const { year, month, day } = jakartaTodayParts(now)
-  const start = new Date(Date.UTC(year, month - 1, day, -JAKARTA_OFFSET_H))
-  const end = new Date(Date.UTC(year, month - 1, day + 1, -JAKARTA_OFFSET_H))
-  return { start, end }
-}
-
-export function getThisWeekRange(now = new Date()) {
-  // Minggu Senin–Minggu (ISO). weekday: 0=Minggu, 1=Senin...
-  const { year, month, day, weekday } = jakartaTodayParts(now)
-  const daysSinceMonday = (weekday + 6) % 7
-  const start = new Date(Date.UTC(year, month - 1, day - daysSinceMonday, -JAKARTA_OFFSET_H))
-  const end = new Date(Date.UTC(year, month - 1, day - daysSinceMonday + 7, -JAKARTA_OFFSET_H))
-  return { start, end }
-}
-
-export function getThisMonthRange(now = new Date()) {
-  const { year, month } = jakartaTodayParts(now)
-  const start = new Date(Date.UTC(year, month - 1, 1, -JAKARTA_OFFSET_H))
-  const end = new Date(Date.UTC(year, month, 1, -JAKARTA_OFFSET_H))
-  return { start, end }
-}
+export { getThisMonthRange, getThisWeekRange, getTodayRange }
 
 // ── pure formatter for report payload ─────────────────────────────────
 export type ReportPayload = {
@@ -61,7 +28,7 @@ export function formatReport(
   rangeLabel: string,
   p: ReportPayload,
 ): string {
-  const fc = (n: number) => formatCurrency(n).replace(/\s+/g, '')
+  const fc = formatCurrencyCompact
   const lines = [
     `\u{1F4CA} <b>${title}</b>`,
     `<i>${rangeLabel}</i>`,
@@ -117,18 +84,9 @@ async function aggregateRange(range: { start: Date; end: Date }): Promise<Report
 function rangeLabel(range: { start: Date; end: Date }) {
   // end eksklusif → tampilkan end-1 hari untuk label yg intuitif
   const endDisplay = new Date(range.end.getTime() - 1)
-  const startLabel = formatReportDate(range.start)
-  const endLabel = formatReportDate(endDisplay)
+  const startLabel = formatDate(range.start)
+  const endLabel = formatDate(endDisplay)
   return startLabel === endLabel ? startLabel : `${startLabel} - ${endLabel}`
-}
-
-function formatReportDate(date: Date) {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    timeZone: REPORT_TIME_ZONE,
-  }).format(date)
 }
 
 export async function buildDailyReport(now = new Date()) {
@@ -175,7 +133,7 @@ export async function buildKaplingsReport(now = new Date()) {
     },
   })
 
-  const fc = (n: number) => formatCurrency(n).replace(/\s+/g, '')
+  const fc = formatCurrencyCompact
   const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
   if (kaplings.length === 0) {

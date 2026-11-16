@@ -2,18 +2,13 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { sendDocument, sendMessage, sendPhoto } from '@/lib/telegram'
 import { buildSaleInvoicePdf } from '@/lib/invoice-pdf'
-import { formatCurrency, formatDate, formatKg, toDateInputValue } from '@/lib/date'
-import { expenseCategories, maintenanceTypes } from '@/lib/types'
+import { formatCurrencyCompact, formatDate, formatKg, toDateInputValue } from '@/lib/date'
+import { resolveUploadedPhotoPath } from '@/lib/uploads'
+import { defaultExpenseCategories, defaultMaintenanceTypes, getLabel } from '@/lib/types'
 
 const BUSINESS_NAME = process.env.BUSINESS_NAME ?? 'Rekapal'
 
-// Node.js Intl may insert a non-breaking space (U+00A0) between the currency
-// symbol and the number. Strip it so that Telegram caption strings are
-// consistent across environments (tests assert 'Rp250.000' without any space).
-function fc(value: number) {
-  //   = non-breaking space that id-ID locale inserts after 'Rp'
-  return formatCurrency(value).replace(/ /g, '')
-}
+const fc = formatCurrencyCompact
 
 export type SaleInput = {
   id: string
@@ -29,6 +24,7 @@ export type ExpenseInput = {
   kaplingName: string
   expenseDate: Date
   category: string
+  categoryLabel?: string
   amount: number
   photoPath?: string | null
 }
@@ -37,6 +33,7 @@ export type MaintenanceInput = {
   kaplingName: string
   activityDate: Date
   type: string
+  typeLabel?: string
   cost?: number | null
   photoPath?: string | null
 }
@@ -53,12 +50,12 @@ function escapeHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function categoryLabel(value: string) {
-  return expenseCategories.find((c) => c.value === value)?.label ?? value
+function categoryLabel(value: string, override?: string) {
+  return override || getLabel(defaultExpenseCategories, value)
 }
 
-function typeLabel(value: string) {
-  return maintenanceTypes.find((t) => t.value === value)?.label ?? value
+function typeLabel(value: string, override?: string) {
+  return override || getLabel(defaultMaintenanceTypes, value)
 }
 
 export function buildInvoiceNumber(record: { id: string; saleDate: Date }) {
@@ -91,7 +88,7 @@ export function saleDeletedText(sale: SaleInput) {
 export function expenseTextMessage(e: ExpenseInput, action: 'baru' | 'diperbarui' | 'dihapus') {
   const icon = action === 'dihapus' ? '\u{1F5D1}️' : action === 'diperbarui' ? '✏️' : '\u{1F9FE}'
   const amount = action === 'dihapus' ? fc(e.amount) : `<b>${fc(e.amount)}</b>`
-  return `${icon} <b>Pengeluaran ${action}</b> (${categoryLabel(e.category)}) — ${escapeHtml(e.kaplingName)}: ${amount} · ${formatDate(e.expenseDate)}`
+  return `${icon} <b>Pengeluaran ${action}</b> (${escapeHtml(categoryLabel(e.category, e.categoryLabel))}) — ${escapeHtml(e.kaplingName)}: ${amount} · ${formatDate(e.expenseDate)}`
 }
 
 export function maintenanceTextMessage(m: MaintenanceInput, action: 'baru' | 'diperbarui' | 'dihapus') {
@@ -102,7 +99,7 @@ export function maintenanceTextMessage(m: MaintenanceInput, action: 'baru' | 'di
       : action === 'dihapus'
         ? fc(m.cost)
         : `<b>${fc(m.cost)}</b>`
-  return `${icon} <b>Perawatan ${action}</b> (${typeLabel(m.type)}) — ${escapeHtml(m.kaplingName)}: ${cost} · ${formatDate(m.activityDate)}`
+  return `${icon} <b>Perawatan ${action}</b> (${escapeHtml(typeLabel(m.type, m.typeLabel))}) — ${escapeHtml(m.kaplingName)}: ${cost} · ${formatDate(m.activityDate)}`
 }
 
 export function harvestTextMessage(h: HarvestInput, action: 'baru' | 'diperbarui' | 'dihapus') {
@@ -120,22 +117,21 @@ async function guard(label: string, fn: () => Promise<void>) {
   }
 }
 
-// Foto disimpan di public/uploads/<filename>. Baca dari disk lalu kirim
-// sebagai attachment. Bila file hilang / path salah, fallback ke pesan teks.
+// Foto disimpan di storage/uploads/<filename> (atau public/uploads/<filename> lama).
+// Baca dari disk lalu kirim sebagai attachment. Bila file hilang / path salah, fallback ke pesan teks.
 async function sendPhotoOrText(photoPath: string | null | undefined, caption: string) {
   if (!photoPath) {
     await sendMessage(caption)
     return
   }
   try {
-    const safe = photoPath.replace(/^\/+/, '')
-    if (!safe.startsWith('uploads/')) throw new Error('unexpected photo path')
-    const abs = path.join(process.cwd(), 'public', safe)
+    const abs = await resolveUploadedPhotoPath(photoPath)
+    if (!abs) throw new Error('unexpected photo path')
     const bytes = await readFile(abs)
-    const ext = path.extname(safe).toLowerCase()
+    const ext = path.extname(abs).toLowerCase()
     const mime =
       ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg'
-    await sendPhoto(bytes, path.basename(safe), caption, mime)
+    await sendPhoto(bytes, path.basename(abs), caption, mime)
   } catch (error) {
     console.warn('[notify] photo fallback ke teks:', error instanceof Error ? error.message : error)
     await sendMessage(caption)

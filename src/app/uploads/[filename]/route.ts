@@ -1,37 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
-import path from 'path'
-import { readFile } from 'fs/promises'
-import { existsSync } from 'fs'
+import path from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { isAuthenticated, isAuthEnabled } from '@/lib/auth'
+import { resolveUploadFileByName } from '@/lib/uploads'
 
-const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ filename: string }> },
+) {
+  if (!(await isAuthenticated())) {
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ filename: string }> }) {
-  const resolvedParams = await params;
-  // Buang komponen direktori agar nama jahat seperti "../../.env" tidak bisa
-  // keluar dari folder uploads (path traversal).
-  const filename = path.basename(resolvedParams.filename)
-  const filePath = path.join(uploadsDir, filename)
+  const resolvedParams = await params
+  const filePath = await resolveUploadFileByName(resolvedParams.filename)
 
-  // Pertahanan berlapis: tolak apa pun yang resolve ke luar folder uploads.
-  if (!filePath.startsWith(uploadsDir + path.sep) || !existsSync(filePath)) {
+  if (!filePath) {
     return new NextResponse('File not found', { status: 404 })
   }
 
   try {
     const fileBuffer = await readFile(filePath)
-    
-    // Determine content type based on extension
-    const ext = path.extname(filename).toLowerCase()
+    const ext = path.extname(filePath).toLowerCase()
     let contentType = 'application/octet-stream'
     if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg'
     else if (ext === '.png') contentType = 'image/png'
     else if (ext === '.webp') contentType = 'image/webp'
-    
+
     return new NextResponse(fileBuffer, {
       headers: {
         'Content-Type': contentType,
-        // Cache control added to avoid repeated fetching if needed, though Next.js might handle some of it
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': isAuthEnabled()
+          ? 'private, no-store'
+          : 'public, max-age=31536000, immutable',
       },
     })
   } catch {

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { ActivityTabs } from '@/components/kapling/activity-tabs'
 import { InactiveKaplingPage } from '@/components/kapling/inactive-page'
+import { requirePageAuth } from '@/lib/auth'
 import { getKaplingWorkspace } from '@/lib/sawit-data'
 
 // Paksa halaman selalu di-render ulang di server setiap request
@@ -8,6 +9,7 @@ import { getKaplingWorkspace } from '@/lib/sawit-data'
 export const dynamic = 'force-dynamic'
 
 export default async function KaplingPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePageAuth()
   const { id } = await params
   const data = await getKaplingWorkspace(id)
 

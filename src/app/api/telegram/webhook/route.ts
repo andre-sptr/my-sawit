@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { dispatchCommand, type TelegramUpdate } from '@/lib/bot-commands'
+import { timingSafeEqualStrings } from '@/lib/security'
 import { sendMessage } from '@/lib/telegram'
 
 // Route handler untuk update dari Telegram (setWebhook).
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'not configured' }, { status: 503 })
   }
   const provided = req.headers.get('x-telegram-bot-api-secret-token')
-  if (provided !== expected) {
+  if (provided == null || !timingSafeEqualStrings(provided, expected)) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
 

@@ -15,10 +15,6 @@ export const defaultExpenseCategories: DropdownItem[] = [
   { value: 'LAIN_LAIN', label: 'Lain-lain' },
 ]
 
-// Keep backward-compat aliases used by forms.tsx and history-lists.tsx
-export const maintenanceTypes = defaultMaintenanceTypes
-export const expenseCategories = defaultExpenseCategories
-
 /** Merge default options with custom DB options. DB options that match a default value use the default label. */
 export function mergeOptions(defaults: DropdownItem[], dbOptions: DropdownItem[]): DropdownItem[] {
   const seen = new Set<string>()

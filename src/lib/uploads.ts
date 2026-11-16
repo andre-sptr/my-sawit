@@ -1,10 +1,71 @@
-import 'server-only'
-
 import { randomUUID } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const maxPhotoSizeBytes = 10 * 1024 * 1024
+
+function primaryUploadDir() {
+  return path.join(/*turbopackIgnore: true*/ process.cwd(), 'storage', 'uploads')
+}
+
+function legacyUploadDir() {
+  return path.join(/*turbopackIgnore: true*/ process.cwd(), 'public', 'uploads')
+}
+
+function isSafeFilename(name: string): boolean {
+  if (!name || name === '.' || name === '..') return false
+  if (name.includes('/') || name.includes('\\') || name.includes('..')) return false
+  return path.basename(name) === name
+}
+
+function extractUploadFilename(photoPath: string | null | undefined): string | null {
+  if (!photoPath) return null
+  const normalized = photoPath.replace(/^\/+/, '')
+  if (!normalized.startsWith('uploads/')) return null
+  const filename = normalized.slice('uploads/'.length)
+  return isSafeFilename(filename) ? filename : null
+}
+
+async function existingFileInDir(dir: string, filename: string): Promise<string | null> {
+  const candidate = path.join(/*turbopackIgnore: true*/ dir, filename)
+  if (!candidate.startsWith(dir + path.sep)) return null
+  try {
+    const info = await stat(candidate)
+    return info.isFile() ? candidate : null
+  } catch {
+    return null
+  }
+}
+
+export async function resolveUploadFileByName(filename: string): Promise<string | null> {
+  if (!isSafeFilename(filename)) return null
+  const inPrimary = await existingFileInDir(primaryUploadDir(), filename)
+  if (inPrimary) return inPrimary
+  return existingFileInDir(legacyUploadDir(), filename)
+}
+
+export async function resolveUploadedPhotoPath(photoPath: string): Promise<string | null> {
+  const filename = extractUploadFilename(photoPath)
+  if (!filename) return null
+  return resolveUploadFileByName(filename)
+}
+
+export async function deleteUploadedPhoto(photoPath: string | null | undefined): Promise<void> {
+  const filename = extractUploadFilename(photoPath)
+  if (!filename) return
+
+  for (const dir of [primaryUploadDir(), legacyUploadDir()]) {
+    const candidate = path.join(/*turbopackIgnore: true*/ dir, filename)
+    if (!candidate.startsWith(dir + path.sep)) continue
+    try {
+      await unlink(candidate)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+        console.warn('[uploads] gagal menghapus foto lama:', error instanceof Error ? error.message : error)
+      }
+    }
+  }
+}
 
 export async function saveOptionalPhoto(formData: FormData, fieldName = 'photo') {
   const photo = formData.get(fieldName)
@@ -24,11 +85,11 @@ export async function saveOptionalPhoto(formData: FormData, fieldName = 'photo')
     throw new Error('Foto harus berformat JPG, PNG, atau WebP.')
   }
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+  const uploadDir = primaryUploadDir()
   const filename = `${Date.now()}-${randomUUID()}.${extension}`
 
   await mkdir(uploadDir, { recursive: true })
-  await writeFile(path.join(uploadDir, filename), buffer)
+  await writeFile(path.join(/*turbopackIgnore: true*/ uploadDir, filename), buffer)
 
   return `/uploads/${filename}`
 }

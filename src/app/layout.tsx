@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { prisma } from "@/lib/prisma";
+import { isAuthenticated, isAuthEnabled } from "@/lib/auth";
 import { SidebarProvider } from "@/components/nav/sidebar-provider";
 import { SidebarShell } from "@/components/nav/sidebar-shell";
 import { MobileTopBar } from "@/components/nav/mobile-top-bar";
@@ -37,10 +38,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Fetch all kaplings for sidebar (both active and inactive)
-  const kaplings = await prisma.kapling.findMany({
-    orderBy: { createdAt: "asc" },
-  });
+  const authEnabled = isAuthEnabled();
+  const authed = await isAuthenticated();
+
+  // Jangan query daftar kapling atau render sidebar bila user belum terautentikasi.
+  const kaplings = authed
+    ? await prisma.kapling.findMany({
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
 
   return (
     <html
@@ -48,24 +54,28 @@ export default async function RootLayout({
       className={`${plusJakarta.variable} ${fraunces.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
-        <SidebarProvider>
-          {/* App Shell */}
-          <div style={{ display: "flex", minHeight: "100dvh" }}>
-            {/* Sidebar */}
-            <SidebarShell kaplings={kaplings} />
+        {authed ? (
+          <SidebarProvider>
+            {/* App Shell */}
+            <div style={{ display: "flex", minHeight: "100dvh" }}>
+              {/* Sidebar */}
+              <SidebarShell kaplings={kaplings} authEnabled={authEnabled} />
 
-            {/* Main area */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowX: "hidden" }}>
-              {/* Mobile top bar */}
-              <MobileTopBar />
+              {/* Main area */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowX: "hidden" }}>
+                {/* Mobile top bar */}
+                <MobileTopBar />
 
-              {/* Page content */}
-              <main style={{ flex: 1 }}>
-                {children}
-              </main>
+                {/* Page content */}
+                <main style={{ flex: 1 }}>
+                  {children}
+                </main>
+              </div>
             </div>
-          </div>
-        </SidebarProvider>
+          </SidebarProvider>
+        ) : (
+          <main style={{ flex: 1 }}>{children}</main>
+        )}
       </body>
     </html>
   );

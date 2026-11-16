@@ -49,3 +49,8 @@ next-env.d.ts
 .agents/
 
 .claude/
+
+/public/uploads/*
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+/tmp/

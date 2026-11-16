@@ -1,20 +1,31 @@
 import { NextResponse } from 'next/server'
 import { buildDailyReport } from '@/lib/reports'
-import { sendMessage } from '@/lib/telegram'
+import { timingSafeEqualStrings } from '@/lib/security'
+import { sendMessageResult } from '@/lib/telegram'
 
-// Endpoint dipanggil oleh scheduler (Vercel Cron / cron eksternal / GitHub Action).
-// Perlindungan: header `Authorization: Bearer <CRON_SECRET>`
-// atau query `?token=<CRON_SECRET>` untuk service yg tidak dukung header.
+// Endpoint dipanggil oleh scheduler (cron lokal / eksternal).
+// Perlindungan: disarankan header `Authorization: Bearer <CRON_SECRET>`,
+// dengan fallback query `?token=<CRON_SECRET>` untuk scheduler yang tidak mendukung header.
 
 export const runtime = 'nodejs'
 
 function isAuthorized(req: Request) {
   const secret = process.env.CRON_SECRET
   if (!secret) return false
+
   const auth = req.headers.get('authorization')
-  if (auth === `Bearer ${secret}`) return true
-  const url = new URL(req.url)
-  return url.searchParams.get('token') === secret
+  if (auth && auth.startsWith('Bearer ')) {
+    const provided = auth.slice('Bearer '.length)
+    if (timingSafeEqualStrings(provided, secret)) return true
+  }
+
+  try {
+    const url = new URL(req.url)
+    const token = url.searchParams.get('token')
+    return token !== null && timingSafeEqualStrings(token, secret)
+  } catch {
+    return false
+  }
 }
 
 async function handle(req: Request) {
@@ -22,7 +33,14 @@ async function handle(req: Request) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   }
   const text = await buildDailyReport()
-  await sendMessage(text)
+  const result = await sendMessageResult(text)
+  if (!result.ok) {
+    const status = result.reason === 'unconfigured' ? 503 : 502
+    return NextResponse.json(
+      { ok: false, error: result.reason === 'unconfigured' ? 'telegram not configured' : 'telegram delivery failed' },
+      { status },
+    )
+  }
   return NextResponse.json({ ok: true })
 }
 

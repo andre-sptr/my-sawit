@@ -127,4 +127,35 @@ describe('telegram transport', () => {
     const form = init.body as FormData
     expect((form.get('document') as Blob).size).toBe(3)
   })
+
+  it('sendMessageResult mengembalikan status unconfigured, failed, atau ok', async () => {
+    delete process.env.TELEGRAM_BOT_TOKEN
+    delete process.env.TELEGRAM_CHAT_ID
+    const mod = await import('@/lib/telegram')
+    expect(await mod.sendMessageResult('halo')).toEqual({ ok: false, reason: 'unconfigured' })
+
+    process.env.TELEGRAM_BOT_TOKEN = 'TOKEN'
+    process.env.TELEGRAM_CHAT_ID = '-100'
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('bad', { status: 400 }))
+    expect(await mod.sendMessageResult('halo')).toEqual({ ok: false, reason: 'failed' })
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    expect(await mod.sendMessageResult('halo')).toEqual({ ok: true })
+  })
+
+  it('retry pada 429 dengan Retry-After header', async () => {
+    process.env.TELEGRAM_BOT_TOKEN = 'TOKEN'
+    process.env.TELEGRAM_CHAT_ID = '-100'
+    let calls = 0
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      calls++
+      if (calls === 1) {
+        return new Response('{}', { status: 429, headers: { 'retry-after': '0' } })
+      }
+      return new Response('{}', { status: 200 })
+    })
+    const { sendMessageResult } = await import('@/lib/telegram')
+    expect(await sendMessageResult('halo')).toEqual({ ok: true })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
 })

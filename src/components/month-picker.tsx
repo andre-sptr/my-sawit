@@ -91,6 +91,7 @@ export function MonthPicker({
       {/* Navigation */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
         <button
+          type="button"
           onClick={goToPrev}
           style={arrowBtn}
           aria-label="Bulan sebelumnya"
@@ -99,6 +100,7 @@ export function MonthPicker({
           ◀
         </button>
         <button
+          type="button"
           onClick={goToNext}
           style={isFuture ? disabledArrow : arrowBtn}
           aria-label="Bulan berikutnya"
@@ -109,6 +111,7 @@ export function MonthPicker({
         </button>
         {!isCurrentMonth && (
           <button
+            type="button"
             onClick={() => router.push(pathname)}
             style={{
               padding: '5px 12px',

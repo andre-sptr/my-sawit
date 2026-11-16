@@ -6,7 +6,7 @@ import { createKapling } from '@/app/actions'
 
 function XIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
     </svg>
   )
@@ -33,62 +33,136 @@ function SubmitButton() {
   )
 }
 
-export function AddKaplingModal({ isOpen, onClose }: AddKaplingModalProps) {
+function AddKaplingForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
   const formRef = useRef<HTMLFormElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [state, formAction] = useActionState(createKapling, null)
+  const hasError = Boolean(state && !state.ok)
 
   useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    if (state?.ok) {
+      formRef.current?.reset()
+      onSuccess()
+    }
+  }, [state, onSuccess])
+
+  return (
+    <form ref={formRef} action={formAction} style={{ padding: '0 20px 20px' }}>
+      <div style={{ marginBottom: 16 }}>
+        <label htmlFor="modal-kapling-name" style={{
+          display: 'block',
+          fontSize: 'calc(11px * var(--text-scale, 1))',
+          fontWeight: 700,
+          color: 'var(--color-muted)',
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          marginBottom: 6,
+        }}>
+          Nama Kapling
+        </label>
+        <input
+          ref={inputRef}
+          id="modal-kapling-name"
+          name="name"
+          placeholder="Contoh: Blok A, Kapling 01..."
+          maxLength={100}
+          required
+          autoFocus
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? 'modal-kapling-error' : undefined}
+          className="input-field"
+          style={{ fontSize: 'calc(14px * var(--text-scale, 1))' }}
+        />
+      </div>
+
+      {hasError && state && (
+        <p
+          id="modal-kapling-error"
+          role="alert"
+          aria-live="polite"
+          style={{ margin: '0 0 10px', fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-danger)', fontWeight: 600 }}
+        >
+          {state.message}
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button
+          type="button"
+          onClick={onCancel}
+          style={{
+            flex: 1, height: 42, borderRadius: 'var(--radius-md)',
+            border: '1.5px solid var(--color-border)', background: 'transparent',
+            color: 'var(--color-muted)', fontWeight: 600, fontSize: 'calc(13px * var(--text-scale, 1))',
+            cursor: 'pointer', transition: 'background 0.15s',
+          }}
+        >
+          Batal
+        </button>
+        <SubmitButton />
+      </div>
+    </form>
+  )
+}
+
+export function AddKaplingModal({ isOpen, onClose }: AddKaplingModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 80)
+      if (!dialog.open) {
+        dialog.showModal()
+      }
+    } else if (dialog.open) {
+      dialog.close()
     }
   }, [isOpen])
 
+  // Fallback light-dismiss untuk browser tanpa dukungan atribut HTML `closedby` (mis. Safari).
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    const dialog = dialogRef.current
+    if (!dialog || 'closedBy' in HTMLDialogElement.prototype) return
 
-  useEffect(() => {
-    if (isOpen && state?.ok) {
-      formRef.current?.reset()
-      onClose()
+    let pressedOutside = false
+    const isOutside = (e: PointerEvent) => {
+      const r = dialog.getBoundingClientRect()
+      return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom
     }
-  }, [isOpen, state, onClose])
+    const onPointerDown = (e: PointerEvent) => {
+      pressedOutside = isOutside(e)
+    }
+    const onPointerUp = (e: PointerEvent) => {
+      if (pressedOutside && isOutside(e) && dialog.open) {
+        dialog.close()
+      }
+      pressedOutside = false
+    }
 
-  if (!isOpen) return null
+    dialog.addEventListener('pointerdown', onPointerDown)
+    dialog.addEventListener('pointerup', onPointerUp)
+    return () => {
+      dialog.removeEventListener('pointerdown', onPointerDown)
+      dialog.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [])
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
+    <dialog
+      ref={dialogRef}
+      className="rekapal-dialog"
+      aria-labelledby="add-kapling-title"
+      onClose={onClose}
+      {...({ closedby: 'any' } as Record<string, string>)}
     >
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(4px)',
-        }}
-        className="animate-fade-in"
-      />
-
-      {/* Dialog */}
       <div
         style={{
-          position: 'relative',
           width: '100%',
-          maxWidth: 420,
           background: 'var(--color-surface)',
           borderRadius: 'var(--radius-xl)',
           boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
@@ -96,7 +170,6 @@ export function AddKaplingModal({ isOpen, onClose }: AddKaplingModalProps) {
         }}
         className="animate-scale-in"
       >
-        {/* Header */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -105,11 +178,17 @@ export function AddKaplingModal({ isOpen, onClose }: AddKaplingModalProps) {
           marginBottom: 20,
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 'calc(17px * var(--text-scale, 1))', fontWeight: 700, color: 'var(--color-ink)' }}>Tambah Kapling Baru</h2>
-            <p style={{ margin: '4px 0 0', fontSize: 'calc(13px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>Masukkan nama kapling kebun sawit</p>
+            <h2 id="add-kapling-title" style={{ margin: 0, fontSize: 'calc(17px * var(--text-scale, 1))', fontWeight: 700, color: 'var(--color-ink)' }}>
+              Tambah Kapling Baru
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 'calc(13px * var(--text-scale, 1))', color: 'var(--color-muted)' }}>
+              Masukkan nama kapling kebun sawit
+            </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Tutup dialog"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 32, height: 32, borderRadius: 8, border: '1px solid var(--color-border)',
@@ -121,51 +200,10 @@ export function AddKaplingModal({ isOpen, onClose }: AddKaplingModalProps) {
           </button>
         </div>
 
-        {/* Form */}
-        <form ref={formRef} action={formAction} style={{ padding: '0 20px 20px' }}>
-          <div style={{ marginBottom: 16 }}>
-            <label htmlFor="modal-kapling-name" style={{
-              display: 'block',
-              fontSize: 'calc(11px * var(--text-scale, 1))',
-              fontWeight: 700,
-              color: 'var(--color-muted)',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              marginBottom: 6,
-            }}>
-              Nama Kapling
-            </label>
-            <input
-              ref={inputRef}
-              id="modal-kapling-name"
-              name="name"
-              placeholder="Contoh: Blok A, Kapling 01..."
-              required
-              className="input-field"
-              style={{ fontSize: 'calc(14px * var(--text-scale, 1))' }}
-            />
-          </div>
-
-          {state && !state.ok && (
-            <p style={{ margin: '0 0 10px', fontSize: 'calc(12px * var(--text-scale, 1))', color: 'var(--color-danger)', fontWeight: 600 }}>{state.message}</p>
-          )}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                flex: 1, height: 42, borderRadius: 'var(--radius-md)',
-                border: '1.5px solid var(--color-border)', background: 'transparent',
-                color: 'var(--color-muted)', fontWeight: 600, fontSize: 'calc(13px * var(--text-scale, 1))',
-                cursor: 'pointer', transition: 'background 0.15s',
-              }}
-            >
-              Batal
-            </button>
-            <SubmitButton />
-          </div>
-        </form>
+        {isOpen && (
+          <AddKaplingForm onSuccess={onClose} onCancel={onClose} />
+        )}
       </div>
-    </div>
+    </dialog>
   )
 }

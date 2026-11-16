@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { Kapling } from '@prisma/client'
+import { logoutAction } from '@/app/login/actions'
 import { useSidebar } from '@/components/nav/sidebar-provider'
 
 function PalmIcon() {
@@ -51,10 +52,11 @@ function PlusIcon() {
 
 interface SidebarProps {
   kaplings: Kapling[]
+  authEnabled: boolean
   onAddKapling: () => void
 }
 
-function SidebarContent({ kaplings, onAddKapling }: SidebarProps) {
+function SidebarContent({ kaplings, authEnabled, onAddKapling }: SidebarProps) {
   const pathname = usePathname()
   const { close } = useSidebar()
 
@@ -211,8 +213,11 @@ function SidebarContent({ kaplings, onAddKapling }: SidebarProps) {
       <div style={{
         padding: '12px 10px 16px',
         borderTop: '1px solid var(--sidebar-border)',
+        display: 'grid',
+        gap: 8,
       }}>
         <button
+          type="button"
           onClick={onAddKapling}
           style={{
             display: 'flex',
@@ -242,6 +247,29 @@ function SidebarContent({ kaplings, onAddKapling }: SidebarProps) {
           <PlusIcon />
           Tambah Kapling
         </button>
+        {authEnabled && (
+          <form action={logoutAction}>
+            <button
+              type="submit"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                padding: '8px 16px',
+                borderRadius: 10,
+                border: '1px solid var(--sidebar-border)',
+                background: 'transparent',
+                color: 'var(--sidebar-text)',
+                fontSize: 'calc(12px * var(--text-scale, 1))',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Keluar
+            </button>
+          </form>
+        )}
       </div>
     </div>
   )

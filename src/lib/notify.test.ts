@@ -56,7 +56,7 @@ describe('notify orchestrators', () => {
     expect((telegram.sendMessage as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain('Penjualan dihapus')
   })
 
-  it('pengeluaran → teks dengan label kategori', async () => {
+  it('pengeluaran → teks dengan label kategori (default & override kustom)', async () => {
     await notifyExpenseCreated({
       kaplingName: 'Kapling 1',
       expenseDate: new Date('2026-06-23T03:00:00Z'),
@@ -67,6 +67,16 @@ describe('notify orchestrators', () => {
     expect(msg).toContain('Pengeluaran baru')
     expect(msg).toContain('Gaji karyawan')
     expect(msg).toContain('Rp200.000')
+
+    await notifyExpenseCreated({
+      kaplingName: 'Kapling 1',
+      expenseDate: new Date('2026-06-23T03:00:00Z'),
+      category: 'SEWA_TRUK',
+      categoryLabel: 'Sewa Truk',
+      amount: 500000,
+    })
+    const customMsg = (telegram.sendMessage as unknown as ReturnType<typeof vi.fn>).mock.calls[1][0]
+    expect(customMsg).toContain('Sewa Truk')
   })
 
   it('perawatan tanpa biaya → teks "tanpa biaya"', async () => {

@@ -30,6 +30,63 @@ function formatKaplingSubtitle(name: string) {
   return /^kapling\b/i.test(trimmed) ? trimmed : `Kapling ${trimmed}`
 }
 
+function computeAlignedX(x: number, textWidth: number, align: 'left' | 'center' | 'right' = 'left') {
+  if (align === 'right') return x - textWidth
+  if (align === 'center') return x - textWidth / 2
+  return x
+}
+
+function breakLongWord(word: string, maxWidth: number, measure: (s: string) => number): string[] {
+  const chunks: string[] = []
+  let current = ''
+  for (const ch of word) {
+    const next = current + ch
+    if (current && measure(next) > maxWidth) {
+      chunks.push(current)
+      current = ch
+    } else {
+      current = next
+    }
+  }
+  if (current) chunks.push(current)
+  return chunks
+}
+
+function wrapTextLines(text: string, maxWidth: number, measure: (s: string) => number): string[] {
+  const paragraphs = winAnsiSafe(text).split(/\r?\n/)
+  const lines: string[] = []
+
+  for (const para of paragraphs) {
+    const words = para.trim().split(/\s+/).filter(Boolean)
+    if (words.length === 0) {
+      lines.push('')
+      continue
+    }
+    let current = ''
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word
+      if (measure(candidate) <= maxWidth) {
+        current = candidate
+        continue
+      }
+      if (current) {
+        lines.push(current)
+        current = ''
+      }
+      if (measure(word) <= maxWidth) {
+        current = word
+      } else {
+        const parts = breakLongWord(word, maxWidth, measure)
+        lines.push(...parts.slice(0, -1))
+        current = parts[parts.length - 1] ?? ''
+      }
+    }
+    if (current) lines.push(current)
+  }
+
+  return lines.length > 0 ? lines : ['']
+}
+
 export async function buildSaleInvoicePdf(input: SaleInvoiceInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create()
   const page = doc.addPage([595.28, 841.89]) // A4 portrait (points)
@@ -60,8 +117,7 @@ export async function buildSaleInvoicePdf(input: SaleInvoiceInput): Promise<Uint
     size?: number
     bold?: boolean
     color?: ReturnType<typeof rgb>
-    x?: number
-    align?: 'left' | 'right'
+    align?: 'left' | 'center' | 'right'
   }
 
   const textWidth = (text: string, size: number, useBold = false) =>
@@ -71,7 +127,7 @@ export async function buildSaleInvoicePdf(input: SaleInvoiceInput): Promise<Uint
     const size = opts.size ?? 10.5
     const useBold = opts.bold ?? false
     const safe = winAnsiSafe(text)
-    const drawX = opts.align === 'right' ? x - textWidth(safe, size, useBold) : x
+    const drawX = computeAlignedX(x, textWidth(safe, size, useBold), opts.align)
     page.drawText(safe, {
       x: drawX,
       y: baseline,
@@ -84,23 +140,6 @@ export async function buildSaleInvoicePdf(input: SaleInvoiceInput): Promise<Uint
   const drawLabelValue = (label: string, value: string, x: number, baseline: number, labelWidth = 78) => {
     drawText(label.toUpperCase(), x, baseline, { size: 7.5, bold: true, color: muted })
     drawText(value, x + labelWidth, baseline - 1, { size: 10.5, bold: true, color: ink })
-  }
-
-  const wrapText = (text: string, maxWidth: number, size = 10) => {
-    const words = winAnsiSafe(text).split(/\s+/).filter(Boolean)
-    const lines: string[] = []
-    let current = ''
-    for (const word of words) {
-      const next = current ? `${current} ${word}` : word
-      if (textWidth(next, size) <= maxWidth) {
-        current = next
-      } else {
-        if (current) lines.push(current)
-        current = word
-      }
-    }
-    if (current) lines.push(current)
-    return lines.length > 0 ? lines : ['']
   }
 
   const card = (x: number, top: number, w: number, h: number, fill = rgb(1, 1, 1)) => {
@@ -119,7 +158,8 @@ export async function buildSaleInvoicePdf(input: SaleInvoiceInput): Promise<Uint
   page.drawRectangle({ x: 0, y: height - 142, width, height: 142, color: brandDark })
   page.drawRectangle({ x: 0, y: height - 142, width: 12, height: 142, color: accent })
   page.drawCircle({ x: margin + 18, y: height - 66, size: 18, color: rgb(1, 1, 1) })
-  drawText('R', margin + 10.5, height - 74, { size: 22, bold: true, color: brandDark })
+  const monogram = (winAnsiSafe(businessName)[0] ?? 'R').toUpperCase()
+  drawText(monogram, margin + 18, height - 74, { size: 22, bold: true, color: brandDark, align: 'center' })
   drawText(businessName, margin + 48, height - 58, { size: 22, bold: true, color: rgb(1, 1, 1) })
   drawText('Manajemen hasil panen kelapa sawit', margin + 48, height - 79, {
     size: 9.5,
@@ -138,7 +178,7 @@ export async function buildSaleInvoicePdf(input: SaleInvoiceInput): Promise<Uint
   })
   if (input.isRevision) {
     page.drawRectangle({ x: pageRight - 78, y: height - 113, width: 78, height: 24, color: rgb(1, 0.92, 0.9) })
-    drawText('REVISI', pageRight - 39, height - 105, { size: 10, bold: true, color: danger, align: 'right' })
+    drawText('REVISI', pageRight - 39, height - 105, { size: 10, bold: true, color: danger, align: 'center' })
   }
 
   y = height - 174
@@ -219,9 +259,10 @@ export async function buildSaleInvoicePdf(input: SaleInvoiceInput): Promise<Uint
 
   if (input.note) {
     const noteTop = y - 108
-    card(margin, noteTop, width - margin * 2, 78, rgb(0.99, 0.99, 0.98))
+    const noteLines = wrapTextLines(input.note, width - margin * 2 - 32, (s) => textWidth(s, 9.5)).slice(0, 6)
+    const noteHeight = Math.max(78, 44 + noteLines.length * 14 + 12)
+    card(margin, noteTop, width - margin * 2, noteHeight, rgb(0.99, 0.99, 0.98))
     drawText('Catatan', margin + 16, noteTop - 24, { size: 10, bold: true, color: brand })
-    const noteLines = wrapText(input.note, width - margin * 2 - 32, 9.5).slice(0, 3)
     noteLines.forEach((line, index) => {
       drawText(line, margin + 16, noteTop - 44 - index * 14, { size: 9.5, color: muted })
     })
@@ -244,4 +285,4 @@ export async function buildSaleInvoicePdf(input: SaleInvoiceInput): Promise<Uint
   return doc.save()
 }
 
-export const __internal = { formatKaplingSubtitle, normalizeBusinessName }
+export const __internal = { formatKaplingSubtitle, normalizeBusinessName, computeAlignedX, wrapTextLines }

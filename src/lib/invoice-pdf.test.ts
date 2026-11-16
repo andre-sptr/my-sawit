@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { buildSaleInvoicePdf, __internal } from '@/lib/invoice-pdf'
 
 const base = {
@@ -12,6 +12,12 @@ const base = {
   note: null as string | null,
   isRevision: false,
 }
+
+const ORIG_TZ = process.env.TZ
+
+afterEach(() => {
+  process.env.TZ = ORIG_TZ
+})
 
 describe('buildSaleInvoicePdf', () => {
   it('menghasilkan byte PDF valid', async () => {
@@ -36,8 +42,31 @@ describe('buildSaleInvoicePdf', () => {
     const bytes = await buildSaleInvoicePdf({
       ...base,
       isRevision: true,
-      note: 'lunas tunai ✅',
+      note: 'lunas tunai ✅\nbaris kedua\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       kaplingName: 'Kebun Émas 🌴',
+    })
+    expect(bytes).toBeInstanceOf(Uint8Array)
+  })
+
+  it('computeAlignedX memusatkan teks untuk align center', () => {
+    expect(__internal.computeAlignedX(500, 40, 'center')).toBe(480)
+    expect(__internal.computeAlignedX(500, 40, 'right')).toBe(460)
+    expect(__internal.computeAlignedX(500, 40, 'left')).toBe(500)
+  })
+
+  it('wrapTextLines mempertahankan baris baru dan memecah kata panjang', () => {
+    const measure = (s: string) => s.length * 6
+    const lines = __internal.wrapTextLines('Baris 1\nBaris 2 sangatpanjangsekali', 60, measure)
+    expect(lines[0]).toBe('Baris 1')
+    expect(lines.length).toBeGreaterThan(2)
+    expect(lines.every((l) => measure(l) <= 60)).toBe(true)
+  })
+
+  it('memformat tanggal pada PDF menggunakan Jakarta meski TZ=UTC', async () => {
+    process.env.TZ = 'UTC'
+    const bytes = await buildSaleInvoicePdf({
+      ...base,
+      saleDate: new Date('2026-06-30T17:00:00.000Z'), // 01 Jul 2026 WIB
     })
     expect(bytes).toBeInstanceOf(Uint8Array)
   })
